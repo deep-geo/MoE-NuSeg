@@ -14,39 +14,41 @@ their complexity and long inference times hinder integration into clinical workf
 
 ## Our Contributions
 
-1. **Unified Nuclei Dataset**: We curated a large, unified nuclei image dataset from 11 public sources to fine-tune SAM's encoder adapters and decoder. This helps bridge the data distribution gap between natural and nuclei images, enhancing the model's ability to handle diverse tissue types, staining techniques, and imaging conditions.
+1. **MoE-NuSeg**:we introduce
+MoE-NuSeg, a novel domain-knowledge-driven MoE nuclei
+segmentation network based on the Swin Transformer.
 
-2. **Semi-Supervised Training**: To further enhance the model with extensive unannotated data, we implemented semi-supervised training using iterative pseudo-labeling on a dataset comprising 550K cell images. We have open-sourced the annotations of this dataset to facilitate further research and development.
+2. **attention-based gating
+network**:  we propose an innovative attention-based gating
+network in MoE that dynamically modulates the contributions
+of the three specialized experts based on input data, enhancing
+overall segmentation performance and robustness
+3. **Novel Edge Prompt**: we
+design a novel two-stage training scheme to optimize the
+collaboration between the experts and the gating network.
+In the initial stage, the three specialized experts are trained
+independently to excel in their respective tasks, consolidating
+the roles previously spread across multiple decoders. In the
+subsequent stage, these experts are trained in conjunction
+with the gating network, fostering enhanced collaboration and
+co-evolution among the components. This two-stage training
+strategy ensures that the experts can leverage their specialized
+knowledge while adaptively collaborating based on the input
+data, ultimately leading to superior segmentation performance.
 
-3. **Novel Edge Prompt**: We proposed a novel edge prompt to improve nuclei edge delineation by identifying the touching edges of adjacent nuclei, significantly enhancing instance segmentation in densely packed clusters.
 
 ## Results
 
-Extensive experiments validate our model's effectiveness on test images across 11 datasets and in zero-shot scenarios on MoNuSeg. Our approach is designed for easy integration into existing clinical workflows.
+Extensive experiments validate our model's effectiveness on test images. Our approach is designed for easy integration into existing clinical workflows.
 
-## Visual Representation
+## Architecture
 
-![Edge-SAN Visualization](https://github.com/deep-geo/NucleiSAM/assets/112611011/7a4452c0-db0c-4249-8ce4-23e7e2c78a7e)
+![image](https://github.com/deep-geo/MoE-NuSeg/assets/112611011/ab194456-bacd-4941-aa5b-9a0dd3281568)
 
 
-## Datasets
-
-### Supervised Datasets 
-
-https://huggingface.co/datasets/DeepNuc/EdgeNuclei
 
 
 ## Citation
 
 If you find this work useful for your research, please consider citing:
 
-```bibtex
-@misc{wu2023edgesan,
-  author = {Xuening Wu and Yiqing Shen and Yan Wang and Qing Zhao and Yanlan Kang and Ruiqi Hu and Wenqiang Zhang},
-  title = {Edge-SAN: A Nuclei Segmentation Foundation Model with Edge Prompting for Pathology Images},
-  year = {2023},
-  publisher = {GitHub},
-  journal = {GitHub repository},
-  howpublished = {\url{https://github.com/deep-geo/NucleiSAM/}}
-}
-```
