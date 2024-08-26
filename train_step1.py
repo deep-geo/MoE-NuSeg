@@ -43,12 +43,12 @@ from itertools import chain
 import wandb
 import warnings
 
-from dataset_lizard import MyDataset
+from dataset_radio import MyDataset
 
 warnings.filterwarnings("ignore", category=UserWarning, message="torch.meshgrid") # Suppress the specific UserWarning related to torch.meshgrid
 device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
 
-base_data_dir = "/root/autodl-tmp/data"
+base_data_dir = "/root/autodl-tmp/"
 HISTOLOGY_DATA_PATH = os.path.join(base_data_dir, 'histology') #HISTOLOGY_DATA_PATH  Containing two folders named data and test
 RADIOLOGY_DATA_PATH = os.path.join(base_data_dir,'fluorescence') # Containing two folders named data and test
 THYROID_DATA_PATH = os.path.join(base_data_dir,'thyroid') # Containing two folders named data and test
@@ -134,13 +134,6 @@ def main():
             print("{} In Loading previous model weights".format(err))
             
     model.to(device)
-#     input_tensor = torch.randn(1, 3, 512, 512).to(device)
-#     flops, params = profile(model, inputs=(input_tensor,))
-
-#     print(f"p1 Model FLOPs: {flops / 1e9} G FLOPs")  # Print FLOPs in Giga FLOPs (GFLOPs)
-#     print(f"p1 Model Number of Parameters: {params / 1e6} M parameters")  # Print the number of parameters in millions
-#     wandb.log({"FLOPs Gs": flops / 1e9 })
-#     wandb.log({"Number of Parameters Ms": params / 1e6 })
 
     now = datetime.datetime.now()
     

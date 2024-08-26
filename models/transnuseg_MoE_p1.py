@@ -668,8 +668,8 @@ class SwinTransformerBlock_up(nn.Module):
         # FFNs => MoE
         x = shortcut + self.drop_path(x) # shortcut
         x = self.norm1(x)        
+        
         expert_weights = self.gating_network(x)  # Compute expert weights using gating network
-        #x = x * expert_weights
         
         expert_outputs = []
 
@@ -912,17 +912,19 @@ class BasicLayer_up(nn.Module):
                                  norm_layer=norm_layer)
             for i in range(depth)])
 
-        # patch merging layer
+        # patch expanding layer
         if upsample is not None:
             self.upsample = PatchExpand(input_resolution, dim=dim, dim_scale=2, norm_layer=norm_layer)
         else:
             self.upsample = None
 
     def forward(self, x):
+        
+        
     
         for blk in self.blocks:
             if self.use_checkpoint:
-                x = checkpoint.checkpoint(blk, x)
+                x= checkpoint.checkpoint(blk, x)
             else:
                 x = blk(x)
         if self.upsample is not None:
@@ -940,7 +942,8 @@ class PatchEmbed(nn.Module):
         norm_layer (nn.Module, optional): Normalization layer. Default: None
     """
 
-    def __init__(self, img_size=224, patch_size=4, in_chans=3, embed_dim=96, norm_layer=None):
+    #def __init__(self, img_size=224, patch_size=4, in_chans=3, embed_dim=96, norm_layer=None):
+    def __init__(self, img_size=512, patch_size=4, in_chans=3, embed_dim=96, norm_layer=None):
         super().__init__()
         img_size = to_2tuple(img_size)
         patch_size = to_2tuple(patch_size)
@@ -1068,12 +1071,8 @@ class TransNuSeg(nn.Module):
         
         # build decoder layers
         self.layers_up = nn.ModuleList()
-        # self.layers_up2 = nn.ModuleList() # Normal edge decoder
-        # self.layers_up3 = nn.ModuleList() # Cluster edge decoder
 
         self.concat_back_dim = nn.ModuleList()
-        # self.concat_back_dim2 = nn.ModuleList()
-        # self.concat_back_dim3 = nn.ModuleList()
         
         ####################################### Up-sampling #######################################
         for i_layer in range(self.num_layers):
@@ -1110,12 +1109,6 @@ class TransNuSeg(nn.Module):
 
         self.norm = norm_layer(self.num_features)
         self.norm_up= norm_layer(self.embed_dim)
-
-        # self.norm2 = norm_layer(self.num_features)
-        # self.norm_up2= norm_layer(self.embed_dim)
-
-        # self.norm3 = norm_layer(self.num_features)
-        # self.norm_up3= norm_layer(self.embed_dim)
 
         if self.final_upsample == "expand_first":
             #print("---final upsample expand_first---")
@@ -1171,40 +1164,40 @@ class TransNuSeg(nn.Module):
             seg_mask = layer(seg_mask)
             edge_mask = layer(edge_mask)
 
-
         seg_mask = self.norm(seg_mask)  # B L C
         edge_mask = self.norm(edge_mask)
   
-        return seg_mask,edge_mask, seg_mask_downsample,edge_mask_downsample
+        return seg_mask, edge_mask, seg_mask_downsample, edge_mask_downsample
 
-    #Dencoder and Skip connection
-    def forward_up_features(self, seg_mask,edge_mask, seg_mask_downsample,edge_mask_downsample):
-        # #print("forward ",self.layers_up2[0])
+    #Decoder and Skip connection
+    def forward_up_features(self, seg_mask, edge_mask, seg_mask_downsample, edge_mask_downsample):
+        
         for inx in range(len(self.layers_up)):
             if inx == 0:
                 seg_mask = self.layers_up[inx](seg_mask)
-                # cluster_edge = self.layers_up3[inx](edge_mask)
-                # edge_mask = self.layers_up2[inx](edge_mask)
+                
+                cluster_mask = edge_mask.clone() 
+                edge_mask = self.layers_up[inx](edge_mask) 
+                cluster_edge = self.layers_up[inx](cluster_mask) 
+
             else:
-                #print("shape ",seg_mask.shape,seg_mask_downsample[3-inx].shape)
-                seg_mask = torch.cat([seg_mask,seg_mask_downsample[3-inx]],-1)
-                seg_mask = self.concat_back_dim[inx](seg_mask)
-                seg_mask = self.layers_up[inx](seg_mask)
+                seg_mask = torch.cat([seg_mask,seg_mask_downsample[3-inx]],-1) # concat the mask with skip connection 
+                seg_mask = self.concat_back_dim[inx](seg_mask) # restore the dim 
+                seg_mask= self.layers_up[inx](seg_mask)
+                
+                edge_mask = torch.cat([edge_mask,edge_mask_downsample[3-inx]],-1)
+                edge_mask = self.concat_back_dim[inx](edge_mask)
+                edge_mask = self.layers_up[inx](edge_mask)
+            
+                cluster_edge = torch.cat([cluster_edge, edge_mask_downsample[3-inx]],-1)
+                cluster_edge = self.concat_back_dim[inx](cluster_edge)
+                cluster_edge = self.layers_up[inx](cluster_edge)
+                
 
-                # edge_mask = torch.cat([edge_mask,edge_mask_downsample[3-inx]],-1)
-                # edge_mask = self.concat_back_dim2[inx](edge_mask)
-                # edge_mask = self.layers_up2[inx](edge_mask)
-
-                # cluster_edge = torch.cat([cluster_edge,edge_mask_downsample[3-inx]],-1)
-                # cluster_edge = self.concat_back_dim3[inx](cluster_edge)
-                # cluster_edge = self.layers_up3[inx](cluster_edge)
-        
-
+                
         seg_mask = self.norm_up(seg_mask)
-        # edge_mask = self.norm_up2(edge_mask)  # B L C
-        # cluster_edge = self.norm_up3(cluster_edge)
-        edge_mask = self.edge_transform(seg_mask)
-        cluster_edge = self.cluster_transform(seg_mask)
+        edge_mask = self.norm_up(edge_mask)  
+        cluster_edge = self.norm_up(cluster_edge)
   
         return seg_mask,edge_mask,cluster_edge
 
@@ -1223,29 +1216,23 @@ class TransNuSeg(nn.Module):
             edge_mask = edge_mask.view(B,4*H,4*W,-1)
             edge_mask = edge_mask.permute(0,3,1,2) #B,C,H,W
             edge_mask = self.output2(edge_mask)
-            #edge_mask = self.edge_output(edge_mask)
 
             cluster_edge = self.up(cluster_edge)
             cluster_edge = cluster_edge.view(B,4*H,4*W,-1)
             cluster_edge = cluster_edge.permute(0,3,1,2) #B,C,H,W
             cluster_edge = self.output3(cluster_edge)
-            #cluster_edge = self.cluster_output(cluster_edge)
         # #print("up_x4 x size ",x.shape)
         return seg_mask,edge_mask,cluster_edge
 
     def forward(self, x):
+        
         seg_mask, edge_mask, seg_mask_downsample, edge_mask_downsample = self.forward_features(x)
 
-        # #print("downsampling, ")
-
-        #seg_mask,edge_mask,cluster_edge = self.forward_up_features(seg_mask,seg_mask_downsample)
-        seg_mask,edge_mask,cluster_edge = self.forward_up_features(seg_mask,edge_mask, seg_mask_downsample,edge_mask_downsample)
-        # #print("forward features ", seg_mask.shape,edge_mask.shape,cluster_edge.shape)
+        seg_mask,edge_mask,cluster_edge = self.forward_up_features(seg_mask, edge_mask, seg_mask_downsample,edge_mask_downsample)
 
         seg_mask,edge_mask,cluster_edge = self.up_x4(seg_mask,edge_mask,cluster_edge)
         
-
-        return seg_mask,edge_mask,cluster_edge
+        return seg_mask, edge_mask, cluster_edge
 
     def flops(self):
         flops = 0
