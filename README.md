@@ -1,4 +1,4 @@
-# MoE-NuSeg (Mixture of Experts Nuclei Seg)
+# MoE-NuSeg (Mixture of Experts Nuclei Segementation)
 
 ## Introduction
 
