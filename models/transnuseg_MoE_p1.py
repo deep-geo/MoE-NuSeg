@@ -1,6 +1,4 @@
-
-# the output of decoder change from 3 to 1, input of decoder keeps no change
-
+# Three experts are trained in the stage 1
 
 import torch
 import torch.nn as nn
