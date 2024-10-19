@@ -6,6 +6,7 @@ from os.path import join as pjoin
 import torch
 import torch.nn as nn
 import numpy as np
+import cv2  
 from torch.nn import CrossEntropyLoss, Dropout, Softmax, Linear, Conv2d, LayerNorm
 from torch.nn.modules.utils import _pair
 from scipy import ndimage
@@ -42,17 +43,16 @@ from itertools import chain
 
 import wandb
 import warnings
-
-from dataset_radio import MyDataset
+from dataset import MyDataset
 
 warnings.filterwarnings("ignore", category=UserWarning, message="torch.meshgrid") # Suppress the specific UserWarning related to torch.meshgrid
 device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
 
-base_data_dir = "/root/autodl-tmp/"
+base_data_dir = "/root/autodl-tmp/data/"
 HISTOLOGY_DATA_PATH = os.path.join(base_data_dir, 'histology') #HISTOLOGY_DATA_PATH  Containing two folders named data and test
 RADIOLOGY_DATA_PATH = os.path.join(base_data_dir,'fluorescence') # Containing two folders named data and test
 THYROID_DATA_PATH = os.path.join(base_data_dir,'thyroid') # Containing two folders named data and test
-LIZARD_DATA_PATH = os.path.join(base_data_dir,'lizard')
+LIZARD_DATA_PATH = os.path.join(base_data_dir,'TNBC')
 
 def main():
     '''
@@ -134,9 +134,10 @@ def main():
             print("{} In Loading previous model weights".format(err))
             
     model.to(device)
-
-    now = datetime.datetime.now()
     
+    from datetime import datetime
+
+    now = datetime.now()
     create_dir('./log')
     logging.basicConfig(filename='./log/log_{}_{}_{}.txt'.format(model_type,dataset,str(now)), level=logging.INFO,
                             format='[%(asctime)s.%(msecs)03d] %(message)s', datefmt='%H:%M:%S')
@@ -161,28 +162,31 @@ def main():
     
     train_loss = []
     val_loss = []
+    test_loss = []
     
     num_classes = 2
     
-    ce_loss1 = CrossEntropyLoss()
+    
+    ce_loss1 = BCE_Loss_logits()
+    ce_loss2 = BCE_Loss_logits()    
+    ce_loss3 = BCE_Loss_logits()
+
+    
     dice_loss1 = DiceLoss(num_classes)
-    ce_loss2 = CrossEntropyLoss()
     dice_loss2 = DiceLoss(num_classes)
-    ce_loss3 = CrossEntropyLoss()
     dice_loss3 = DiceLoss(num_classes)
+        
     softmax = torch.nn.Softmax(dim=1)
 
     optimizer = optim.Adam(model.parameters(), lr=base_lr)
-    #lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=20, gamma=0.95, last_epoch=-1)
-    lr_scheduler = CosineAnnealingLR(optimizer, T_max=2000, eta_min=1e-8)
+    lr_scheduler = CosineAnnealingLR(optimizer, T_max=500, eta_min=1e-8) #2000
 
-    
     best_loss = 10000
     best_epoch = 0
     
     for epoch in range(num_epoch):
         # early stop, if the loss does not decrease for 50 epochs
-        if epoch > best_epoch + 50:
+        if epoch > best_epoch + 60:
             break
         for phase in ['train','val']:
             running_loss = 0
@@ -197,42 +201,45 @@ def main():
 
                 img, instance_seg_mask, semantic_seg_mask,normal_edge_mask,cluster_edge_mask = d
                 
-                img = img.float().to(device)
-                normal_edge_mask = normal_edge_mask.to(device)
+                if epoch == 1:
+                    visualize_dataloader_output(i, img, instance_seg_mask, semantic_seg_mask,normal_edge_mask,cluster_edge_mask, save_dir='/root/autodl-tmp/data/MoNuSeg2020')
+             
+                img = img.float()   
+                #print(f"img.shape:{img.shape}")
+                img = img.to(device)
+               
                 semantic_seg_mask = semantic_seg_mask.to(device).long()
+                normal_edge_mask = normal_edge_mask.to(device)
                 cluster_edge_mask = cluster_edge_mask.to(device)
                 
-                # print('semantic_seg_mask shape: ',semantic_seg_mask.shape)
-                # print('semantic_seg_mask: ',semantic_seg_mask)
-                # print('input img shape: ', img.shape)
-                
                 output1, output2, output3 = model(img) 
-                #output1 = torch.stack([output1, -output1], dim=1)
-                
-                # print('output1 shape:', output1.shape)
+
                 ce_loss_seg = ce_loss1(output1, semantic_seg_mask.long())
                 dice_loss_seg = dice_loss1(output1, semantic_seg_mask.float(), softmax=True)
                 
-                #ce_loss_nor = ce_loss2(output2, semantic_seg_mask.long())
                 ce_loss_nor = ce_loss2(output2, normal_edge_mask.long())
-                dice_loss_nor = dice_loss2(output2, normal_edge_mask.float(), softmax=True)
-                
+                dice_loss_nor = dice_loss2(output2, normal_edge_mask.float())
+             
                 ce_loss_clu = ce_loss3(output3, cluster_edge_mask.long())
-                dice_loss_clu = dice_loss3(output3, cluster_edge_mask.float(), softmax=True)
-                
-                
+                dice_loss_clu = dice_loss3(output3, cluster_edge_mask.float())
+
                 loss_seg = 0.4*ce_loss_seg + 0.6*dice_loss_seg
                 loss_nor = 0.4*ce_loss_nor + 0.6*dice_loss_nor
                 loss_clu = 0.4*ce_loss_clu + 0.6*dice_loss_clu
-                
-                loss = alpha*loss_seg  + beta*loss_nor + gamma*loss_clu 
 
                 if phase == 'val':
                     wandb.log({"CE Loss Seg":ce_loss_seg, "Dice Loss Seg":dice_loss_seg})
                     wandb.log({"CE Loss Edge":ce_loss_nor, "Dice Loss Edge":dice_loss_nor})
                     wandb.log({"CE Loss Cluster":ce_loss_clu, "Dice Loss Cluster":dice_loss_clu})
+                    #wandb.log({"HDF_Loss_Edge":HDF_loss_nor,"HDF_Loss_cluster":HDF_loss_clu})
+                    if epoch%30 == 1:
+                        log_predictions_to_wandb(img, output1, semantic_seg_mask, output2, normal_edge_mask, output3, cluster_edge_mask, epoch, prefix='comparison')
+
+
+                ### calculating total loss
+                loss = alpha*loss_seg  + beta*loss_nor + gamma*loss_clu 
+                if phase == 'val':
                     wandb.log({"Total Loss":loss})
-                    #print(f"Total Loss:{loss}")
 
                 running_loss+=loss.item()
                 running_loss_seg += loss_seg.item() ## Loss for nuclei segmantation
@@ -243,27 +250,32 @@ def main():
                     lr_scheduler.step()
                 
             e = time.time()
-            print(f"duration: {(e-s)*100/dataset_sizes[phase]}")
-            
             batch_loss = running_loss / dataset_sizes[phase]
             batch_loss_seg = running_loss_seg / dataset_sizes[phase]       ## Avg Loss for nuclei segmantation per batch of one epoch
             print(f"{phase} Epoch: {epoch+1}, Batch Seg loss: {batch_loss_seg}, loss: {batch_loss}, lr: {optimizer.param_groups[0]['lr']}, time: {e-s}")
+            
            
             if phase == 'train':
                 train_loss.append(batch_loss)
+                # wandb.log({"Seg Loss/train": batch_loss_seg})
                 # wandb.log({"epoch time/train": e-s})
             else:
-                val_loss.append(batch_loss)
+                test_loss.append(batch_loss_seg)
                 wandb.log({"Seg Loss per batch": batch_loss_seg})
-                #print(f"Seg Loss per batch in epoch:{batch_loss_seg}")
-
+                
+                output1 = torch.argmax(output1, dim=1).squeeze(0) # batch size = 1 , argmax over 2 classes
+                output2 = torch.argmax(output2, dim=1).squeeze(0)
+                output3 = torch.argmax(output3, dim=1).squeeze(0)
+                 
+               
             if phase == 'val' and batch_loss_seg < best_loss:
                 best_loss = batch_loss_seg
-                best_epoch = epoch
+                best_epoch = epoch+1
                 best_model_wts = copy.deepcopy(model.state_dict())
                 logging.info("Best val seg loss {} save at epoch {}".format(best_loss,epoch+1))
+                
 
-    draw_loss(train_loss,val_loss,str(now))
+    draw_loss(train_loss,test_loss,str(now))
     
     create_dir('./saved')
     
@@ -298,12 +310,6 @@ def main():
             preds_softmax = torch.softmax(preds, dim=1)
             preds_classes = torch.argmax(preds_softmax, dim=1)
             
-            pred1_softmax = torch.softmax(pred1, dim=1)
-            pred1_classes = torch.argmax(pred1_softmax, dim=1)
-            
-            pred2_softmax = torch.softmax(pred2, dim=1)
-            pred2_classes = torch.argmax(pred2_softmax, dim=1)
-            
             #write_images(img, semantic_seg_mask, preds_classes, pred1_classes, pred2_classes, output_dir)
             
             preds_flat = preds_classes.view(-1)
@@ -318,7 +324,7 @@ def main():
             prec = evaluate(np_labels, np_preds, metric="PREC")  
             sens = evaluate(np_labels, np_preds, metric="SENS")  
             spec = evaluate(np_labels, np_preds, metric="SPEC")  
-            f1 = 2*prec*sens/(prec+sens)
+            f1 = 2*prec*sens/(prec+sens+0.0000000001)
             
             dices.append(dice)
             f1s.append(f1) 
@@ -328,15 +334,25 @@ def main():
             senss.append(sens)
             specs.append(spec)
             
-    average_dice = np.mean(dices)
-    average_f1 = np.mean(f1)
-    average_iou = np.mean(ious)
-    average_accuracy = np.mean(accuracies)
-    average_prec = np.mean(precs)
-    average_sens = np.mean(sens)
-    average_spec = np.mean(spec) 
+    average_dice = np.mean(dices) * 100.0
+    average_f1 = np.mean(f1) * 100.0
+    average_iou = np.mean(ious)* 100.0
+    average_accuracy = np.mean(accuracies)* 100.0
+    average_prec = np.mean(precs)* 100.0
+    average_sens = np.mean(sens)* 100.0
+    average_spec = np.mean(spec) * 100.0
+    
+    wandb.log({
+    "Result/Dice": average_dice,
+    "Result/F1": average_f1,
+    "Result/IoU_JI": average_iou,
+    "Result/Accuracy": average_accuracy,
+    "Result/Sensitivity": average_sens,
+    "Result/Specificity": average_spec,
+    "Result/Precision": average_prec
+})
+    wandb.finish()
 
-  
     print(f"average_Dice: {average_dice}\n"
           f"average_F1: {average_f1}\n"
           f"average_IoU_JI: {average_iou}\n"
@@ -347,20 +363,11 @@ def main():
     
     parts = save_path.split('/')
     model_part = next((part for part in parts if part.startswith('model')), None) # extract the weight file name instead of whole path
-    log_entry = f"{dataset}, {random_seed}, 'p1', {average_dice*100.0}, {average_iou*100.0}, {average_f1*100.0}, {average_accuracy*100.0}, {average_prec*100.0},{average_sens*100.0}, {average_spec*100.0}, {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}, {model_part}\n"
+    log_entry = f"{dataset}, 'p1', {random_seed}, {average_dice}, {average_iou}, {average_f1}, {average_accuracy}, {average_prec},{average_sens}, {average_spec}, {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}, {model_part}\n"
 
     # Append the log entry to the file
     with open("./log/results.txt", "a") as file:
-        file.write(log_entry) 
-    
-    wandb.log({"Dice": average_dice*100.0})
-    wandb.log({"F1": average_f1*100.0})
-    wandb.log({"IoU_JI": average_iou*100.0})
-    wandb.log({"Accuracy": average_accuracy*100.0})
-    wandb.log({"Sensitivity": average_sens*100.0})
-    wandb.log({"Specificity": average_spec*100.0})  
-    wandb.log({"Precision": average_prec*100.0})
-    wandb.finish()
-            
+        file.write(log_entry)  
+        
 if __name__=='__main__':
     main()

@@ -89,6 +89,28 @@ class BinaryDiceLoss(nn.Module):  # added 20240117
         assert inputs.size() == target.size(), 'predict {} & target {} shape do not match'.format(inputs.size(), target.size())
         dice = self._dice_loss(inputs, target)
         return dice
+    
+class BCE_Loss_logits(nn.Module):
+    def __init__(self):
+        super(BCE_Loss_logits, self).__init__()
+
+    def forward(self, logits, targets):
+        # Ensure targets are of type float
+        targets = targets.float()
+        y_pred_prob = torch.sigmoid(logits)
+        
+        epsilon = 1e-11
+        
+        # Positive and negative loss components
+        # pos_loss = targets * F.softplus(-logits)  # Equivalent to -y * log(sigmoid(z))
+        # neg_loss = (1 - targets) * F.softplus(logits)  # Equivalent to -(1 - y) * log(1 - sigmoid(z))
+        
+        pos_loss = targets * torch.log(y_pred_prob + epsilon)  # -y * log(sigmoid(logits))
+        neg_loss = (1.0 - targets) * torch.log(1.0 - y_pred_prob + epsilon)  # -(1 - y) * log(1 - sigmoid(logits))
+
+        # Combine losses
+        loss = -(torch.mean(pos_loss + neg_loss))
+        return loss
 
       
 

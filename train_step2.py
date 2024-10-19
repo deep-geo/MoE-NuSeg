@@ -27,23 +27,22 @@ import time
 import sys
 from datetime import datetime
 import argparse
-#from sklearn.metrics import f1_score, accuracy_score
-from thop import profile
+from sklearn.metrics import f1_score, accuracy_score
 
 import wandb
 import warnings
 
-
+#from dataset import MyDataset
+from dataset import MyDataset
 from utils import *
 from models.transnuseg_MoE_p2_prior import TransNuSeg, SwinTransformerBlock_up
-from test import test_main
+#from test import test_main
+from miseval import evaluate
 
 from itertools import chain
-from miseval import evaluate
 
 import wandb
 import warnings
-from dataset import MyDataset
 
 warnings.filterwarnings("ignore", category=UserWarning, message="torch.meshgrid") # Suppress the specific UserWarning related to torch.meshgrid
 
@@ -53,45 +52,29 @@ base_data_dir = "/root/autodl-tmp/data"
 HISTOLOGY_DATA_PATH = os.path.join(base_data_dir, 'histology') #HISTOLOGY_DATA_PATH  Containing two folders named data and test
 RADIOLOGY_DATA_PATH = os.path.join(base_data_dir,'fluorescence') # Containing two folders named data and test
 THYROID_DATA_PATH = os.path.join(base_data_dir,'thyroid') # Containing two folders named data and test
-LIZARD_DATA_PATH = os.path.join(base_data_dir,'lizard')
+LIZARD_DATA_PATH = os.path.join(base_data_dir,'CoNSeP')
 
-# Histology
-#checkpoint_path = "/root/autodl-tmp/venvs/ray/3Experts_TransNuSeg/saved/model_Histology_MoE_p1_seed41_epoch159_loss_0.14079_0313_0750.pt"
-#checkpoint_path = "/root/autodl-tmp/venvs/ray/3Experts_TransNuSeg/saved/model_Histology_MoE_p1_seed41_epoch118_loss_0.13422_0312_1232.pt"
-#checkpoint_path = "/root/autodl-tmp/venvs/ray/3Experts_TransNuSeg/saved/model_Histology_MoE_p1_seed42_epoch138_loss_0.13399_0312_1407.pt"
-#checkpoint_path = "/root/autodl-tmp/venvs/ray/3Experts_TransNuSeg/saved/model_Histology_MoE_p1_seed42_epoch208_loss_0.13618_0313_0937.pt"
-#checkpoint_path = "/root/autodl-tmp/venvs/ray/3Experts_TransNuSeg/saved/model_Histology_MoE_p1_seed43_epoch139_loss_0.13231_0313_1152.pt"
-#checkpoint_path = "/root/autodl-tmp/venvs/ray/3Experts_TransNuSeg/saved/model_Histology_MoE_p1_seed42_epoch208_loss_0.13618_0313_0937.pt"
-#checkpoint_path = "/root/autodl-tmp/venvs/ray/3Experts_TransNuSeg/saved/model_Histology_MoE_p1_seed44_epoch162_loss_0.14121_0313_1404.pt"
-#checkpoint_path = "/root/autodl-tmp/venvs/ray/3Experts_TransNuSeg/saved/model_Histology_MoE_p1_seed43_epoch140_loss_0.13069_1212_1732.pt"
+#checkpoint_path = "/root/venvs/ray/3Experts_TransNuSeg/saved/model_MoE_p1_Thyroid_seed_43_epoch_136_loss_0.04863_1211_2039.pt"
 
-checkpoint_path = "/root/autodl-tmp/venvs/ray/3Experts_TransNuSeg/saved/model_Histology_MoE_p1_seed45_epoch201_loss_0.12858_0313_1634.pt"
+checkpoint_path = "/root/autodl-tmp/3MoE/saved/model_Histology_MoE_p1_seed42_epoch133_loss_0.29590_1018_1445.pt"
 
+#checkpoint_path = "/root/autodl-tmp/venvs/ray/3Experts_TransNuSeg/saved/model_Histology_MoE_p1_seed45_epoch159_loss_0.13824_1219_2349.pt"
+
+# checkpoint_path = "/root/autodl-tmp/venvs/ray/3Experts_TransNuSeg/saved/model_Histology_MoE_p1_seed43_epoch140_loss_0.13069_1212_1732.pt"
 
 
 # Radiology
 #Seed 41
 #checkpoint_path = "/root/autodl-tmp/venvs/ray/3Experts_TransNuSeg/saved/model_Radiology_MoE_p1_seed41_epoch163_loss_0.08125_0112_1145.pt"
-#checkpoint_path = "/root/autodl-tmp/venvs/ray/3Experts_TransNuSeg/saved/model_Radiology_MoE_p1_seed41_epoch154_loss_0.07966_0306_2106.pt"
 
 # Seed 42
-#checkpoint_path = "/root/autodl-tmp/venvs/ray/3Experts_TransNuSeg/saved/model_Radiology_MoE_p1_seed42_epoch238_loss_0.08569_0305_0814.pt"
-#checkpoint_path = "/root/autodl-tmp/venvs/ray/3Experts_TransNuSeg/saved/model_Radiology_MoE_p1_seed42_epoch148_loss_0.08265_0307_0109.pt"
-
-
-#checkpoint_path = "/root/autodl-tmp/venvs/ray/3Experts_TransNuSeg/saved/model_Radiology_MoE_p1_seed42_epoch159_loss_0.08211_0310_2002.pt"
-
+#checkpoint_path = "/root/autodl-tmp/venvs/ray/3Experts_TransNuSeg/saved/model_Radiology_MoE_p1_seed42_epoch212_loss_0.08794_1224_1528.pt"
 # Seed 43
 #checkpoint_path = "/root/autodl-tmp/venvs/ray/3Experts_TransNuSeg/saved/model_Radiology_MoE_p1_seed43_epoch315_loss_0.05533_0114_1948.pt"
-#checkpoint_path = "/root/autodl-tmp/venvs/ray/3Experts_TransNuSeg/saved/model_Radiology_MoE_p1_seed43_epoch232_loss_0.05386_0307_0639.pt"
-
 
 #Seed 44
 #checkpoint_path = "/root/autodl-tmp/venvs/ray/3Experts_TransNuSeg/saved/model_Radiology_MoE_p1_seed44_epoch318_loss_0.05693_0111_1640.pt"
 #checkpoint_path = "/root/autodl-tmp/venvs/ray/3Experts_TransNuSeg/saved/model_Radiology_MoE_p2_seed44_epoch10_loss_0.07162_1223_1441.pt"
-#checkpoint_path = "/root/autodl-tmp/venvs/ray/3Experts_TransNuSeg/saved/model_Radiology_MoE_p1_seed44_epoch204_loss_0.05404_0307_1209.pt"
-#checkpoint_path = "/root/autodl-tmp/venvs/ray/3Experts_TransNuSeg/saved/model_Radiology_MoE_p1_seed45_epoch242_loss_0.05222_0307_2058.pt"
-
 
 
 #Seed 45
@@ -106,31 +89,35 @@ checkpoint_path = "/root/autodl-tmp/venvs/ray/3Experts_TransNuSeg/saved/model_Hi
 #checkpoint_path = "/root/autodl-tmp/venvs/ray/3Experts_TransNuSeg/saved/model_Radiology_MoE_p1_seed46_epoch185_loss_0.05311_1224_2337.pt"
 #checkpoint_path = "/root/autodl-tmp/venvs/ray/3Experts_TransNuSeg/saved/model_Radiology_MoE_p1_seed46_epoch181_loss_0.04782_0114_0737.pt"
 
+#Seed 47
+#checkpoint_path = "/root/autodl-fs/3Experts_TransNuSeg/saved/model_Histology_MoE_p1_seed47_epoch183_loss_0.14585_1215_2346.pt"
+
 
 
 # Lizard
 
+#checkpoint_path = "/root/autodl-tmp/venvs/ray/3Experts_TransNuSeg/saved/model_Lizard_MoE_p1_seed42_epoch242_loss_0.26564_0102_0031.pt"
+#checkpoint_path = "/root/autodl-tmp/venvs/ray/3Experts_TransNuSeg/saved/model_Lizard_MoE_p1_seed44_epoch302_loss_0.28666_0102_1227.pt"
 
-#checkpoint_path = "/root/autodl-tmp/venvs/ray/3Experts_TransNuSeg/saved/model_Lizard_MoE_p1_seed41_epoch395_loss_0.15585_0319_0747.pt"
-#checkpoint_path = "/root/autodl-tmp/venvs/ray/3Experts_TransNuSeg/saved/model_Lizard_MoE_p1_seed42_epoch479_loss_0.14439_0320_1427.pt"
-#checkpoint_path = "/root/autodl-tmp/venvs/ray/3Experts_TransNuSeg/saved/model_Lizard_MoE_p1_seed43_epoch487_loss_0.15464_0321_0546.pt"
-#checkpoint_path = "/root/autodl-tmp/venvs/ray/3Experts_TransNuSeg/saved/model_Lizard_MoE_p1_seed44_epoch486_loss_0.17156_0321_2216.pt"
+#checkpoint_path = "/root/autodl-tmp/venvs/ray/3Experts_TransNuSeg/saved/Lizard/model_Lizard_MoE_p1_seed40_epoch196_loss_0.28249_0106_0901.pt"
+#checkpoint_path = "/root/autodl-tmp/venvs/ray/3Experts_TransNuSeg/saved/Lizard/model_Lizard_MoE_p1_seed45_epoch389_loss_0.25998_1225_0816.pt"
+#checkpoint_path = "/root/autodl-tmp/venvs/ray/3Experts_TransNuSeg/saved/model_Lizard_MoE_p1_seed43_epoch194_loss_0.27724_0110_1708.pt"
 
-#checkpoint_path = "/root/autodl-tmp/venvs/ray/3Experts_TransNuSeg/saved/model_Lizard_MoE_p1_seed41_epoch477_loss_0.15877_0325_1835.pt"
-#checkpoint_path = "/root/autodl-tmp/venvs/ray/3Experts_TransNuSeg/saved/model_Lizard_MoE_p1_seed41_epoch477_loss_0.15975_0326_1645.pt"
-#checkpoint_path = "/root/autodl-tmp/venvs/ray/3Experts_TransNuSeg/saved/model_Lizard_MoE_p1_seed42_epoch432_loss_0.14879_0327_0659.pt"
+#checkpoint_path = "/root/autodl-tmp/venvs/ray/3Experts_TransNuSeg/saved/model_Lizard_MoE_p2_seed44_epoch242_loss_0.27983_0110_1321.pt"
+#checkpoint_path = "/root/autodl-tmp/venvs/ray/3Experts_TransNuSeg/saved/model_Lizard_MoE_p1_seed44_epoch484_loss_0.28198_0119_1427.pt"
+#checkpoint_path = "/root/autodl-fs/3Experts_TransNuSeg/saved/model_Lizard_MoE_p1_seed44_epoch353_loss_0.27932_0308_0004.pt"
+#checkpoint_path = "/root/autodl-fs/3Experts_TransNuSeg/saved/model_Lizard_MoE_p1_seed46_epoch490_loss_0.26815_0307_1444.pt"
+#checkpoint_path = "/root/autodl-fs/3Experts_TransNuSeg/saved/model_Lizard_MoE_p1_seed44_epoch353_loss_0.27932_0308_0004.pt"
 
-#checkpoint_path = "/root/autodl-tmp/venvs/ray/3Experts_TransNuSeg/saved/model_Lizard_MoE_p1_seed44_epoch234_loss_0.18388_0328_2112.pt"
-#checkpoint_path = "/root/autodl-tmp/venvs/ray/3Experts_TransNuSeg/saved/model_Lizard_MoE_p2_seed44_epoch183_loss_0.16999_0329_1934.pt"
-#checkpoint_path = "/root/autodl-tmp/venvs/ray/3Experts_TransNuSeg/saved/model_Lizard_MoE_p1_seed43_epoch477_loss_0.16125_0327_2137.pt"
+#checkpoint_path = "/root/autodl-tmp/3MoE/saved/model_Lizard_MoE_p1_seed41_epoch185_loss_0.17225_0915_2133.pt"
+#checkpoint_path = "/root/autodl-fs/3Experts_TransNuSeg/saved/model_Lizard_MoE_p1_seed45_epoch400_loss_0.26137_0306_2335.pt"
+#checkpoint_path = "/root/autodl-tmp/venvs/ray/3Experts_TransNuSeg/saved/Lizard/model_Lizard_MoE_p1_seed46_epoch183_loss_0.27385_0105_1118.pt"
+#checkpoint_path = "/root/autodl-tmp/venvs/ray/3Experts_TransNuSeg/saved/model_Lizard_MoE_p1_seed46_epoch396_loss_0.26788_0111_0929.pt"
 
-# Seed 45
-#checkpoint_path = "/root/autodl-tmp/venvs/ray/3Experts_TransNuSeg/saved/model_Lizard_MoE_p1_seed45_epoch113_loss_0.17112_0328_2239.pt"
-#checkpoint_path = "/root/autodl-tmp/venvs/ray/3Experts_TransNuSeg/saved/model_Lizard_MoE_p2_seed45_epoch115_loss_0.16378_0329_1237.pt"
+#checkpoint_path = "/root/autodl-tmp/venvs/ray/3Experts_TransNuSeg/saved/Lizard/model_Lizard_MoE_p2_seed46_epoch367_loss_0.26615_0105_1529.pt"
 
-# Seed 46
-#checkpoint_path = "/root/autodl-tmp/venvs/ray/3Experts_TransNuSeg/saved/model_Lizard_MoE_p1_seed46_epoch479_loss_0.15472_0329_0527.pt"
-#checkpoint_path = "/root/autodl-tmp/venvs/ray/3Experts_TransNuSeg/saved/model_Lizard_MoE_p2_seed46_epoch53_loss_0.16626_0329_0759.pt"
+#checkpoint_path = "/root/autodl-tmp/venvs/ray/3Experts_TransNuSeg/saved/model_Thyroid_MoE_p1_seed43_epoch211_loss_0.04802_0120_0651.pt"
+#checkpoint_path = "/root/autodl-tmp/venvs/ray/3Experts_TransNuSeg/saved/model_Thyroid_MoE_p1_seed44_epoch115_loss_0.04046_0120_1623.pt"
 
 
 
@@ -205,15 +192,6 @@ def main():
     wandb.init(project = dataset, name = "MoE p2 seed" + str(random_seed))
 
     model = TransNuSeg(img_size=IMG_SIZE)
-    input_tensor = torch.randn(1, 3, 512, 512)
-    flops, params = profile(model, inputs=(input_tensor,))
-
-    print(f"p2 Model FLOPs: {flops / 1e9} G FLOPs")  # Print FLOPs in Giga FLOPs (GFLOPs)
-    print(f"p2 Model Number of Parameters: {params / 1e6} M parameters")  # Print the number of parameters in millions
-    wandb.log({"FLOPs Gs": flops / 1e9 })
-    wandb.log({"Number of Parameters Ms": params / 1e6 })
-    
-    
     checkpoint = torch.load(checkpoint_path)
     model.load_state_dict(checkpoint, strict=False)
     print(f"=========Phase 2 training: Phase 1 model was loaded, Retrain all==========")
@@ -241,10 +219,6 @@ def main():
 
             
     model.to(device)
-    input = torch.randn(1, 3, 512, 512).to(device)  # Example input (batch size, channels, height, width)
-    flops, params = profile(model, inputs=(input, ))
-    print("FLOPs: ", flops)
-    print("Parameters: ", params)
 
     now = datetime.datetime.now()
     create_dir('./log')
@@ -253,7 +227,7 @@ def main():
     logging.getLogger().addHandler(logging.StreamHandler(sys.stdout))
     logging.info(f"Seed:{random_seed}, Batch size:{batch_size}, epoch num:{num_epoch}")
     
-    total_data = MyDataset(dir_path=data_path)
+    total_data = MyDataset(dir_path=data_path, seed=random_seed)
     train_set_size = int(len(total_data) * 0.8)
     val_set_size = int(len(total_data) * 0.1)
     test_set_size = len(total_data) - train_set_size - val_set_size
@@ -272,6 +246,7 @@ def main():
     
     train_loss = []
     val_loss = []
+    test_loss = []
     
     num_classes=2
     
@@ -285,12 +260,11 @@ def main():
 
     optimizer = optim.Adam(model.parameters(), lr=base_lr)
     #lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=20, gamma=0.95, last_epoch=-1)
-    lr_scheduler = CosineAnnealingLR(optimizer, T_max=1000, eta_min=1e-8)
+    lr_scheduler = CosineAnnealingLR(optimizer, T_max=400, eta_min=1e-8)
 
     
     best_loss = 100
     best_epoch = 0
-    train_time = 0
     
     for epoch in range(num_epoch):
         # early stop, if the loss does not decrease for 50 epochs
@@ -319,7 +293,7 @@ def main():
                 #print('semantic_seg_mask shape ',semantic_seg_mask.shape)
                 #print('input img shape: ', img.shape)
 
-                output1,output2,output3 = model(img)  # Seg , Edge, Cluster Edge
+                output1,output2,output3 = model(img)
                 
                 #print('output1 shape ', output1.shape)
                 
@@ -337,13 +311,17 @@ def main():
                 loss_nor = 0.4*ce_loss_nor + 0.6*dice_loss_nor
                 loss_clu = 0.4*ce_loss_clu + 0.6*dice_loss_clu
                 
-                loss = alpha*loss_seg  + beta*loss_nor + gamma*loss_clu 
-                
 
                 if phase == 'val':
                     wandb.log({"CE Loss Seg":ce_loss_seg, "Dice Loss Seg":dice_loss_seg})
                     wandb.log({"CE Loss Edge":ce_loss_nor, "Dice Loss Edge":dice_loss_nor})
                     wandb.log({"CE Loss Cluster":ce_loss_clu, "Dice Loss Cluster":dice_loss_clu})
+                    if epoch%30 == 1:
+                        log_predictions_to_wandb(img, output1, semantic_seg_mask, output2, normal_edge_mask, output3, cluster_edge_mask, epoch, prefix='comparison')
+
+                ### calculating total loss
+                loss = alpha*loss_seg  + beta*loss_nor + gamma*loss_clu 
+                if phase == 'val':
                     wandb.log({"Total Loss":loss})
                     #print(f"Total Loss:{loss}")
 
@@ -356,10 +334,6 @@ def main():
                     lr_scheduler.step()
                 
             e = time.time()
-            train_time += e-s
-            
-            
-            
             batch_loss = running_loss / dataset_sizes[phase]
             batch_loss_seg = running_loss_seg / dataset_sizes[phase]       ## Avg Loss for nuclei segmantation per batch of one epoch
             print(f"{phase} Epoch: {epoch+1}, Batch Seg loss: {batch_loss_seg}, loss: {batch_loss}, lr: {optimizer.param_groups[0]['lr']}, time: {e-s}")
@@ -370,7 +344,7 @@ def main():
                 # wandb.log({"Seg Loss/train": batch_loss_seg})
                 # wandb.log({"epoch time/train": e-s})
             else:
-                val_loss.append(batch_loss)
+                test_loss.append(batch_loss_seg)
                 wandb.log({"Seg Loss per batch": batch_loss_seg})
                 #print(f"Seg Loss per batch in epoch:{batch_loss_seg}")
 
@@ -380,8 +354,7 @@ def main():
                 best_model_wts = copy.deepcopy(model.state_dict())
                 logging.info("Best val seg loss {} save at epoch {}".format(best_loss,epoch+1))
 
-    print(f"mean training duration: {train_time/num_epoch/train_set_size}")
-    #draw_loss(train_loss,val_loss,str(now))
+    draw_loss(train_loss,test_loss,str(now))
     
     create_dir('./saved')
     
@@ -402,7 +375,6 @@ def main():
     precs = []
     senss =[]
     specs = []
-    durations = []
 
     with torch.no_grad():
         for i, d in enumerate(testloader):
@@ -411,11 +383,7 @@ def main():
             img = img.float()    
             img = img.to(device)
             
-            
-            s = time.time()
             preds,pred1,pred2= model(img)
-            e = time.time()
-            durations.append(e-s)
             
             
             preds_softmax = torch.softmax(preds, dim=1)
@@ -458,16 +426,26 @@ def main():
     average_prec = np.mean(precs)
     average_sens = np.mean(sens)
     average_spec = np.mean(spec) 
+    
+    wandb.log({
+    "Result/Dice": average_dice,
+    "Result/F1": average_f1,
+    "Result/IoU_JI": average_iou,
+    "Result/Accuracy": average_accuracy,
+    "Result/Sensitivity": average_sens,
+    "Result/Specificity": average_spec,
+    "Result/Precision": average_prec
+    })
+    
+    wandb.finish()
 
-  
     print(f"average_Dice: {average_dice}\n"
           f"average_F1: {average_f1}\n"
           f"average_IoU_JI: {average_iou}\n"
           f"average_accuracy: {average_accuracy}\n"
           f"average_Precision: {average_prec}\n"
           f"average_sensitivity: {average_sens}\n"
-          f"average_specificity: {average_spec}\n"
-          f"average_time: {np.mean(durations)*50}")
+          f"average_specificity: {average_spec}")
     
     parts = save_path.split('/')
     model_part = next((part for part in parts if part.startswith('model')), None) # extract the weight file name instead of whole path
@@ -475,16 +453,7 @@ def main():
 
     # Append the log entry to the file
     with open("./log/results.txt", "a") as file:
-        file.write(log_entry) 
-    
-    wandb.log({"Dice": average_dice*100.0})
-    wandb.log({"F1": average_f1*100.0})
-    wandb.log({"IoU_JI": average_iou*100.0})
-    wandb.log({"Accuracy": average_accuracy*100.0})
-    wandb.log({"Sensitivity": average_sens*100.0})
-    wandb.log({"Specificity": average_spec*100.0})  
-    wandb.log({"Precision": average_prec*100.0})
-    wandb.finish()
+        file.write(log_entry)  
 
 if __name__=='__main__':
     main()
