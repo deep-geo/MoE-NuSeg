@@ -1,4 +1,4 @@
-# Three experts are trained in the stage 1
+# Three dedicate experts are trained in the stage 1
 
 import torch
 import torch.nn as nn

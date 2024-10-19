@@ -1,5 +1,5 @@
-# Phase 2 adds the gating network to the 3 existing expert (MLP), which is a soft switch, on the existing 3 experts with physical significance
-# Phase 2 is focusing on training the gating network ONLY!!
+# Phase 2 adds the gating network, which is a soft switch, to the 3 existing experts with physical significance
+# Phase 2 is training the gating network with 3 experts
 
 import torch
 import torch.nn as nn
@@ -521,7 +521,23 @@ class SwinTransformerBlock(nn.Module):
         return flops
 
     
-
+class ExpertMLP(nn.Module):
+    
+    def __init__(self, input_dim, hidden_dim, num_layers=1, activation=nn.ReLU()):
+        super(ExpertMLP, self).__init__()
+        layers = []
+        output_dim = input_dim
+        for _ in range(num_layers):
+            layers.append(nn.Linear(input_dim, hidden_dim))
+            layers.append(activation)
+            input_dim = hidden_dim
+            #print(layers)
+        layers.append(nn.Linear(hidden_dim, output_dim))
+        self.mlp = nn.Sequential(*layers)
+    
+    def forward(self, x):
+        #print(f"x.shape===={x.shape}")
+        return self.mlp(x)
     
 class AttentionGating(nn.Module):
     def __init__(self, dim, num_experts=3):
@@ -546,15 +562,8 @@ class AttentionGating(nn.Module):
         attention_scores = self.attention(x)
         attention_weights = F.softmax(attention_scores, dim=-1)
         
-        # # Weighted sum
-        # x = x * attention_weights
-                # Weighted sum
-        if self.training:
-        # Non-in-place operation for training
-            x = x * attention_weights
-        else:
-        # In-place operation for inference
-            x.mul_(attention_weights)
+        # Weighted sum
+        x = x * attention_weights
         
         x = self.dropout(x)
         x = self.linear2(x)
@@ -678,10 +687,8 @@ class SwinTransformerBlock_up(nn.Module):
 
         # MoE with gating network
         x = shortcut + self.drop_path(x) # shortcut
-        shortcut2 = x
-        x = self.norm1(x) 
-        expert_weights = self.gating_network(x)  # Compute expert weights using gating network be4 norm to keep the characteristic of data
-        
+        x = self.norm1(x)        
+        expert_weights = self.gating_network(x)  # Compute expert weights using gating network
         # print(f"+++++++++++++++++++++++++++++++++++++++++++++")
         # print(f"expert_weights shape: {expert_weights.shape}, \n expert_weights={expert_weights}")
     
@@ -698,11 +705,11 @@ class SwinTransformerBlock_up(nn.Module):
             
         #print(f"data_type = {data_type},\n prior_weights={prior_weights}")
         
-#         expert_weights_np = expert_weights.cpu().detach().numpy().ravel()
-#         prior_weights_np = prior_weights.cpu().detach().numpy().ravel()
-#         diff_weight= expert_weights_np-prior_weights_np
+        expert_weights_np = expert_weights.cpu().detach().numpy().ravel()
+        prior_weights_np = prior_weights.cpu().detach().numpy().ravel()
+        diff_weight= expert_weights_np-prior_weights_np
    
-#         norm = np.linalg.norm(diff_weight)/len(prior_weights_np)
+        norm = np.linalg.norm(diff_weight)/len(prior_weights_np)
         #print("Norm:", norm)
         
         gamma = 0.5  # You can adjust this value between 0 and 1 as needed
@@ -722,8 +729,6 @@ class SwinTransformerBlock_up(nn.Module):
         # print(f"expert_outputs={expert_outputs}")
         # print(f"sum expert_outputs={sum(expert_outputs.shape)}")
         x = sum(expert_outputs)  # Sum the outputs of all experts
-        x = shortcut2 + self.drop_path(x)  # Apply dropout to the aggregated expert outputs
-      
         return x
 
     def extra_repr(self) -> str:
@@ -1127,6 +1132,7 @@ class TransNuSeg(nn.Module):
             if i_layer ==0 :
                 layer_up = PatchExpand(input_resolution=(patches_resolution[0] // (2 ** (self.num_layers-1-i_layer)),
                 patches_resolution[1] // (2 ** (self.num_layers-1-i_layer))), dim=int(embed_dim * 2 ** (self.num_layers-1-i_layer)), dim_scale=2, norm_layer=norm_layer)
+      
             else:
                 layer_up = BasicLayer_up(dim=int(embed_dim * 2 ** (self.num_layers-1-i_layer)),
                                 input_resolution=(patches_resolution[0] // (2 ** (self.num_layers-1-i_layer)),
