@@ -11,6 +11,7 @@ from timm.models.layers import DropPath, to_2tuple, trunc_normal_
 
 import math
 import torch.nn.functional as F
+import pywt
 
 
 def conv1x1(in_planes: int, out_planes: int, stride: int = 1) -> nn.Conv2d:
@@ -541,6 +542,7 @@ class ExpertMLP(nn.Module):
             #print(layers)
         layers.append(nn.Linear(hidden_dim, output_dim))
         self.mlp = nn.Sequential(*layers)
+        
     
     def forward(self, x):
         #print(f"x.shape===={x.shape}")
@@ -600,13 +602,6 @@ class SwinTransformerBlock_up(nn.Module):
             ExpertMLP(input_dim = self.dim, hidden_dim = expert_hidden_dim, num_layers = num_layers)  
             for _ in range(num_experts)])
 
-
-        # Gating Network
-        self.gating_network = nn.Sequential(
-            nn.Linear(self.dim, num_experts),
-            nn.Softmax(dim=-1)
-        )
-
         if self.shift_size > 0:
             # calculate attention mask for SW-MSA
             H, W = self.input_resolution
@@ -632,58 +627,98 @@ class SwinTransformerBlock_up(nn.Module):
 
         self.register_buffer("attn_mask", attn_mask)
 
-    def forward(self, x):
+    def forward(self, x1, x2, x3):
         H, W = self.input_resolution
-        B, L, C = x.shape
+        B, L, C = x1.shape
         assert L == H * W, "input feature has wrong size"
 
-        shortcut = x
-        x = self.norm1(x)
-        x = x.view(B, H, W, C)
+        shortcut1 = x1
+        x1 = self.norm1(x1)
+        x1 = x1.view(B, H, W, C)
+        
+        shortcut2 = x2
+        x2 = self.norm1(x2)
+        x2 = x2.view(B, H, W, C)
+        
+        shortcut3 = x3
+        x3 = self.norm1(x3)
+        x3 = x3.view(B, H, W, C)
 
         # cyclic shift
         if self.shift_size > 0:
-            shifted_x = torch.roll(x, shifts=(-self.shift_size, -self.shift_size), dims=(1, 2))
+            shifted_x1 = torch.roll(x1, shifts=(-self.shift_size, -self.shift_size), dims=(1, 2))
+            shifted_x2 = torch.roll(x2, shifts=(-self.shift_size, -self.shift_size), dims=(1, 2))
+            shifted_x3 = torch.roll(x3, shifts=(-self.shift_size, -self.shift_size), dims=(1, 2))
         else:
-            shifted_x = x
+            shifted_x1 = x1
+            shifted_x2 = x2
+            shifted_x3 = x3
 
         # partition windows
-        x_windows = window_partition(shifted_x, self.window_size)  # nW*B, window_size, window_size, C
-        x_windows = x_windows.view(-1, self.window_size * self.window_size, C)  # nW*B, window_size*window_size, C
+        x_windows1 = window_partition(shifted_x1, self.window_size)  # nW*B, window_size, window_size, C
+        x_windows1 = x_windows1.view(-1, self.window_size * self.window_size, C)  # nW*B, window_size*window_size, C
+        
+        x_windows2 = window_partition(shifted_x2, self.window_size)  # nW*B, window_size, window_size, C
+        x_windows2 = x_windows2.view(-1, self.window_size * self.window_size, C)  # nW*B, window_size*window_size, C
+        
+        x_windows3 = window_partition(shifted_x3, self.window_size)  # nW*B, window_size, window_size, C
+        x_windows3 = x_windows3.view(-1, self.window_size * self.window_size, C)  # nW*B, window_size*window_size, C
 
         # W-MSA/SW-MSA
-        attn_windows = self.attn(x_windows, mask=self.attn_mask)  # nW*B, window_size*window_size, C
+        attn_windows1 = self.attn(x_windows1, mask=self.attn_mask)  # nW*B, window_size*window_size, C
+        attn_windows2 = self.attn(x_windows2, mask=self.attn_mask)  # nW*B, window_size*window_size, C
+        attn_windows3 = self.attn(x_windows3, mask=self.attn_mask)  # nW*B, window_size*window_size, C
 
         # merge windows
-        attn_windows = attn_windows.view(-1, self.window_size, self.window_size, C)
-        shifted_x = window_reverse(attn_windows, self.window_size, H, W)  # B H' W' C
+        attn_windows1 = attn_windows1.view(-1, self.window_size, self.window_size, C)
+        attn_windows2 = attn_windows2.view(-1, self.window_size, self.window_size, C)
+        attn_windows3 = attn_windows3.view(-1, self.window_size, self.window_size, C)
+        
+        shifted_x1 = window_reverse(attn_windows1, self.window_size, H, W)  # B H' W' C
+        shifted_x2 = window_reverse(attn_windows2, self.window_size, H, W)  # B H' W' C
+        shifted_x3 = window_reverse(attn_windows3, self.window_size, H, W)  # B H' W' C
 
         # reverse cyclic shift
         if self.shift_size > 0:
-            x = torch.roll(shifted_x, shifts=(self.shift_size, self.shift_size), dims=(1, 2))
+            x1 = torch.roll(shifted_x1, shifts=(self.shift_size, self.shift_size), dims=(1, 2))
+            x2 = torch.roll(shifted_x2, shifts=(self.shift_size, self.shift_size), dims=(1, 2))
+            x3 = torch.roll(shifted_x3, shifts=(self.shift_size, self.shift_size), dims=(1, 2))
         else:
-            x = shifted_x
-        x = x.view(B, H * W, C)
+            x1 = shifted_x1
+            x2 = shifted_x2
+            x3 = shifted_x3
+            
+        x1 = x1.view(B, H * W, C)
+        x2 = x2.view(B, H * W, C)
+        x3 = x3.view(B, H * W, C)
 
         # FFNs => MoE
-        x = shortcut + self.drop_path(x) # shortcut
-        x = self.norm1(x)        
+        x1 = shortcut1 + self.drop_path(x1) # shortcut
+        x2 = shortcut2 + self.drop_path(x2) # shortcut
+        x3 = shortcut3 + self.drop_path(x3) # shortcut
         
-        expert_weights = self.gating_network(x)  # Compute expert weights using gating network
+        x1 = self.norm1(x1) 
+        x2 = self.norm1(x2) 
+        x3 = self.norm1(x3) 
         
-        expert_outputs = []
+        
+        #expert_outputs = []
+        
+        x1 = self.experts[0](x1)
+        x2 = self.experts[1](x2)
+        x3 = self.experts[2](x3)
 
-        for i, expert in enumerate(self.experts):
-            expert_output = expert(x)
-            expert_weight = expert_weights[:, :, i:i + 1]
+        # for i, expert in enumerate(self.experts):
+        #     x1 = expert(x1)
+            #expert_weight = expert_weights[:, :, i:i + 1]
             #print(f"expert_output shape: {expert_output.shape}, expert weight shape: {expert_weight.shape}")
-            expert_outputs.append(expert_output * expert_weight)
-        x = sum(expert_outputs)  # Sum the outputs of all experts
+            #expert_outputs.append(expert_output * expert_weight)
+        #x = sum(expert_outputs)  # Sum the outputs of all experts
         
         # x = shortcut + self.drop_path(x)
         # x = x + self.drop_path(self.mlp(self.norm2(x)))
 
-        return x
+        return x1, x2, x3
 
     def extra_repr(self) -> str:
         return f"dim={self.dim}, input_resolution={self.input_resolution}, num_heads={self.num_heads}, " \
@@ -918,18 +953,21 @@ class BasicLayer_up(nn.Module):
         else:
             self.upsample = None
 
-    def forward(self, x):
-        
-        
-    
+    def forward(self, x1, x2, x3):
         for blk in self.blocks:
             if self.use_checkpoint:
-                x= checkpoint.checkpoint(blk, x)
+                x1= checkpoint.checkpoint(blk, x1)
+                x2= checkpoint.checkpoint(blk, x2)
+                x3= checkpoint.checkpoint(blk, x3)
             else:
-                x = blk(x)
+                x1,x2,x3 = blk(x1,x2,x3)
+                # x2 = blk(x2)
+                # x3 = blk(x3)
         if self.upsample is not None:
-            x = self.upsample(x)
-        return x
+            x1 = self.upsample(x1)
+            x2 = self.upsample(x2)
+            x3 = self.upsample(x3)
+        return x1, x2, x3
 
 
 class PatchEmbed(nn.Module):
@@ -1023,7 +1061,7 @@ class TransNuSeg(nn.Module):
 
         # split image into non-overlapping patches
         self.patch_embed = PatchEmbed(
-            img_size=img_size, patch_size=patch_size, in_chans=in_chans, embed_dim=embed_dim,
+            img_size=img_size, patch_size=patch_size, in_chans=3, embed_dim=embed_dim,
             norm_layer=norm_layer if self.patch_norm else None)
         num_patches = self.patch_embed.num_patches
         patches_resolution = self.patch_embed.patches_resolution
@@ -1105,8 +1143,6 @@ class TransNuSeg(nn.Module):
             self.layers_up.append(layer_up)
             self.concat_back_dim.append(concat_linear)
 
-            
-
         self.norm = norm_layer(self.num_features)
         self.norm_up= norm_layer(self.embed_dim)
 
@@ -1183,18 +1219,17 @@ class TransNuSeg(nn.Module):
             else:
                 seg_mask = torch.cat([seg_mask,seg_mask_downsample[3-inx]],-1) # concat the mask with skip connection 
                 seg_mask = self.concat_back_dim[inx](seg_mask) # restore the dim 
-                seg_mask= self.layers_up[inx](seg_mask)
+                #seg_mask= self.layers_up[inx](seg_mask)
                 
                 edge_mask = torch.cat([edge_mask,edge_mask_downsample[3-inx]],-1)
                 edge_mask = self.concat_back_dim[inx](edge_mask)
-                edge_mask = self.layers_up[inx](edge_mask)
+                #edge_mask = self.layers_up[inx](edge_mask)
             
                 cluster_edge = torch.cat([cluster_edge, edge_mask_downsample[3-inx]],-1)
                 cluster_edge = self.concat_back_dim[inx](cluster_edge)
-                cluster_edge = self.layers_up[inx](cluster_edge)
-                
+                #cluster_edge = self.layers_up[inx](cluster_edge)
+                seg_mask,edge_mask, cluster_edge = self.layers_up[inx](seg_mask, edge_mask, cluster_edge)
 
-                
         seg_mask = self.norm_up(seg_mask)
         edge_mask = self.norm_up(edge_mask)  
         cluster_edge = self.norm_up(cluster_edge)
