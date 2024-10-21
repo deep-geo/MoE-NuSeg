@@ -1,4 +1,4 @@
-# MoE-NuSeg (Mixture of Experts Nuclei Seg)
+# MoE-NuSeg (Mixture of Experts Nuclei Segementation)
 
 ## Introduction
 
@@ -51,4 +51,9 @@ Extensive experiments validate our model's effectiveness on test images. Our app
 ## Citation
 
 If you find this work useful for your research, please consider citing:
+
+Wu, X., Shen, Y., Zhao, Q., Kang, Y., & Zhang, W. (2025). MoE-NuSeg: Enhancing nuclei segmentation in histology images with a two-stage Mixture of Experts network. Alexandria Engineering Journal, 110, 557-566. https://doi.org/10.1016/j.aej.2024.10.011
+
+You can access the full paper through ScienceDirect at the following link: MoE-NuSeg on ScienceDirect:
+https://www.sciencedirect.com/science/article/pii/S1110016824011669
 
