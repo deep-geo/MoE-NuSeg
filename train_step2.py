@@ -54,72 +54,8 @@ RADIOLOGY_DATA_PATH = os.path.join(base_data_dir,'fluorescence') # Containing tw
 THYROID_DATA_PATH = os.path.join(base_data_dir,'thyroid') # Containing two folders named data and test
 LIZARD_DATA_PATH = os.path.join(base_data_dir,'CoNSeP')
 
-#checkpoint_path = "/root/venvs/ray/3Experts_TransNuSeg/saved/model_MoE_p1_Thyroid_seed_43_epoch_136_loss_0.04863_1211_2039.pt"
-
-checkpoint_path = "/root/autodl-tmp/3MoE/saved/model_Histology_MoE_p1_seed42_epoch133_loss_0.29590_1018_1445.pt"
-
-#checkpoint_path = "/root/autodl-tmp/venvs/ray/3Experts_TransNuSeg/saved/model_Histology_MoE_p1_seed45_epoch159_loss_0.13824_1219_2349.pt"
-
-# checkpoint_path = "/root/autodl-tmp/venvs/ray/3Experts_TransNuSeg/saved/model_Histology_MoE_p1_seed43_epoch140_loss_0.13069_1212_1732.pt"
-
-
-# Radiology
-#Seed 41
-#checkpoint_path = "/root/autodl-tmp/venvs/ray/3Experts_TransNuSeg/saved/model_Radiology_MoE_p1_seed41_epoch163_loss_0.08125_0112_1145.pt"
-
-# Seed 42
-#checkpoint_path = "/root/autodl-tmp/venvs/ray/3Experts_TransNuSeg/saved/model_Radiology_MoE_p1_seed42_epoch212_loss_0.08794_1224_1528.pt"
-# Seed 43
-#checkpoint_path = "/root/autodl-tmp/venvs/ray/3Experts_TransNuSeg/saved/model_Radiology_MoE_p1_seed43_epoch315_loss_0.05533_0114_1948.pt"
-
-#Seed 44
-#checkpoint_path = "/root/autodl-tmp/venvs/ray/3Experts_TransNuSeg/saved/model_Radiology_MoE_p1_seed44_epoch318_loss_0.05693_0111_1640.pt"
-#checkpoint_path = "/root/autodl-tmp/venvs/ray/3Experts_TransNuSeg/saved/model_Radiology_MoE_p2_seed44_epoch10_loss_0.07162_1223_1441.pt"
-
-
-#Seed 45
-#checkpoint_path = "/root/autodl-tmp/venvs/ray/3Experts_TransNuSeg/saved/model_Radiology_MoE_p1_seed45_epoch202_loss_0.06094_1221_1215.pt"
-#checkpoint_path = "/root/autodl-tmp/venvs/ray/3Experts_TransNuSeg/saved/model_Radiology_MoE_p1_seed45_epoch220_loss_0.05486_0113_1545.pt"
-
-
-# checkpoint_path = "/root/autodl-tmp/venvs/ray/3Experts_TransNuSeg/saved/Thyriod/model_Thyroid_MoE_p1_seed43_epoch149_loss_0.04849_1213_1634.pt"
-
-#Seed 46
-#checkpoint_path = "/root/autodl-tmp/venvs/ray/3Experts_TransNuSeg/saved/model_Radiology_MoE_p1_seed46_epoch242_loss_0.05245_1223_2158.pt"
-#checkpoint_path = "/root/autodl-tmp/venvs/ray/3Experts_TransNuSeg/saved/model_Radiology_MoE_p1_seed46_epoch185_loss_0.05311_1224_2337.pt"
-#checkpoint_path = "/root/autodl-tmp/venvs/ray/3Experts_TransNuSeg/saved/model_Radiology_MoE_p1_seed46_epoch181_loss_0.04782_0114_0737.pt"
-
-#Seed 47
-#checkpoint_path = "/root/autodl-fs/3Experts_TransNuSeg/saved/model_Histology_MoE_p1_seed47_epoch183_loss_0.14585_1215_2346.pt"
-
-
-
-# Lizard
-
-#checkpoint_path = "/root/autodl-tmp/venvs/ray/3Experts_TransNuSeg/saved/model_Lizard_MoE_p1_seed42_epoch242_loss_0.26564_0102_0031.pt"
-#checkpoint_path = "/root/autodl-tmp/venvs/ray/3Experts_TransNuSeg/saved/model_Lizard_MoE_p1_seed44_epoch302_loss_0.28666_0102_1227.pt"
-
-#checkpoint_path = "/root/autodl-tmp/venvs/ray/3Experts_TransNuSeg/saved/Lizard/model_Lizard_MoE_p1_seed40_epoch196_loss_0.28249_0106_0901.pt"
-#checkpoint_path = "/root/autodl-tmp/venvs/ray/3Experts_TransNuSeg/saved/Lizard/model_Lizard_MoE_p1_seed45_epoch389_loss_0.25998_1225_0816.pt"
-#checkpoint_path = "/root/autodl-tmp/venvs/ray/3Experts_TransNuSeg/saved/model_Lizard_MoE_p1_seed43_epoch194_loss_0.27724_0110_1708.pt"
-
-#checkpoint_path = "/root/autodl-tmp/venvs/ray/3Experts_TransNuSeg/saved/model_Lizard_MoE_p2_seed44_epoch242_loss_0.27983_0110_1321.pt"
-#checkpoint_path = "/root/autodl-tmp/venvs/ray/3Experts_TransNuSeg/saved/model_Lizard_MoE_p1_seed44_epoch484_loss_0.28198_0119_1427.pt"
-#checkpoint_path = "/root/autodl-fs/3Experts_TransNuSeg/saved/model_Lizard_MoE_p1_seed44_epoch353_loss_0.27932_0308_0004.pt"
-#checkpoint_path = "/root/autodl-fs/3Experts_TransNuSeg/saved/model_Lizard_MoE_p1_seed46_epoch490_loss_0.26815_0307_1444.pt"
-#checkpoint_path = "/root/autodl-fs/3Experts_TransNuSeg/saved/model_Lizard_MoE_p1_seed44_epoch353_loss_0.27932_0308_0004.pt"
-
-#checkpoint_path = "/root/autodl-tmp/3MoE/saved/model_Lizard_MoE_p1_seed41_epoch185_loss_0.17225_0915_2133.pt"
-#checkpoint_path = "/root/autodl-fs/3Experts_TransNuSeg/saved/model_Lizard_MoE_p1_seed45_epoch400_loss_0.26137_0306_2335.pt"
-#checkpoint_path = "/root/autodl-tmp/venvs/ray/3Experts_TransNuSeg/saved/Lizard/model_Lizard_MoE_p1_seed46_epoch183_loss_0.27385_0105_1118.pt"
-#checkpoint_path = "/root/autodl-tmp/venvs/ray/3Experts_TransNuSeg/saved/model_Lizard_MoE_p1_seed46_epoch396_loss_0.26788_0111_0929.pt"
-
-#checkpoint_path = "/root/autodl-tmp/venvs/ray/3Experts_TransNuSeg/saved/Lizard/model_Lizard_MoE_p2_seed46_epoch367_loss_0.26615_0105_1529.pt"
-
-#checkpoint_path = "/root/autodl-tmp/venvs/ray/3Experts_TransNuSeg/saved/model_Thyroid_MoE_p1_seed43_epoch211_loss_0.04802_0120_0651.pt"
-#checkpoint_path = "/root/autodl-tmp/venvs/ray/3Experts_TransNuSeg/saved/model_Thyroid_MoE_p1_seed44_epoch115_loss_0.04046_0120_1623.pt"
-
-
+#checkpoint_path = "/root/autodl-tmp/3MoE/saved/model_Histology_MoE_p1_seed42_epoch133_loss_0.29590_1018_1445.pt"
+checkpoint_path = "/root/autodl-tmp/publish/MoE-NuSeg/saved/model_Histology_MoE_p1_seed42_epoch165_loss_0.29697_1021_1600.pt"
 
 
 def main():
@@ -220,7 +156,7 @@ def main():
             
     model.to(device)
 
-    now = datetime.datetime.now()
+    now = datetime.now()
     create_dir('./log')
     logging.basicConfig(filename='./log/log_{}_{}_{}.txt'.format(model_type,dataset,str(now)), level=logging.INFO,
                             format='[%(asctime)s.%(msecs)03d] %(message)s', datefmt='%H:%M:%S')
@@ -428,13 +364,13 @@ def main():
     average_spec = np.mean(spec) 
     
     wandb.log({
-    "Result/Dice": average_dice,
-    "Result/F1": average_f1,
-    "Result/IoU_JI": average_iou,
-    "Result/Accuracy": average_accuracy,
-    "Result/Sensitivity": average_sens,
-    "Result/Specificity": average_spec,
-    "Result/Precision": average_prec
+    "Result/Dice": average_dice *100.0,
+    "Result/F1": average_f1*100.0,
+    "Result/IoU_JI": average_iou*100.0,
+    "Result/Accuracy": average_accuracy*100.0,
+    "Result/Sensitivity": average_sens*100.0,
+    "Result/Specificity": average_spec*100.0,
+    "Result/Precision": average_prec*100.0
     })
     
     wandb.finish()
@@ -449,7 +385,7 @@ def main():
     
     parts = save_path.split('/')
     model_part = next((part for part in parts if part.startswith('model')), None) # extract the weight file name instead of whole path
-    log_entry = f"{dataset}, 'p2', {random_seed}, {average_dice*100.0}, {average_iou*100.0}, {average_f1*100.0}, {average_accuracy*100.0}, {average_prec*100.0},{average_sens*100.0}, {average_spec*100.0}, {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}, {model_part}\n"
+    log_entry = f"{dataset}, 'p2', {random_seed}, {average_dice}, {average_iou}, {average_f1}, {average_accuracy}, {average_prec},{average_sens}, {average_spec}, {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}, {model_part}\n"
 
     # Append the log entry to the file
     with open("./log/results.txt", "a") as file:

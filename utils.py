@@ -29,6 +29,7 @@ import time
 import logging
 import sys
 from datetime import datetime
+import wandb
 
 class DiceLoss(nn.Module):
     def __init__(self, n_classes):
@@ -795,200 +796,326 @@ def edge_detection(m,channel = 1):
         outputs[i] = blank
     return outputs
 
+def logits2image(t: torch.Tensor) -> np.ndarray:
+    t = t.cpu().detach().numpy()
+    binary_mask = np.zeros_like(t, dtype=np.uint8)
+    binary_mask[t >= 0] = 255
+    return binary_mask
 
-def visualize(seg, gt, batch_pos):
+def binary_gt2image(t: torch.Tensor) -> np.ndarray:
+    # Convert the tensor to a NumPy array and set all non-zero values to 255
+    binary_array = t.cpu().numpy() != 0  # Create a boolean mask
+    return (binary_array.astype(np.uint8)) * 255  # Convert to uint8 and scale to 255
 
-    batch_size = 2 
+def apply_colormap(mask, color='green'):
+    """
+    Apply colormap to a single-channel mask.
+    """
+    colored_mask = np.zeros((mask.shape[0], mask.shape[1], 3), dtype=np.uint8)
+    colored_mask[:, :, 1] = mask  # Apply to green channel
 
-    for i in range(batch_size):
-        fig, axes = plt.subplots(1, 2, figsize=(10, 5))
-    # Plot the first image (segmentation) in the first subplot
-        axes[0].imshow(seg[i], cmap='viridis')  # Assuming cmap for segmentation
-        axes[0].set_title(f'Segmentation {batch_pos+i}')
+    return colored_mask
 
-    # Plot the second image (ground truth) in the second subplot
-        axes[1].imshow(gt[i], cmap='gray')  # Assuming grayscale for ground truth
-        axes[1].set_title(f'Ground Truth {batch_pos+i}')
 
-    # Optional: Turn off axis labels and ticks
-    for ax in axes:
-        ax.axis('off')
+
+def log_predictions_to_wandb(raw_input, seg_masks, seg_masks_gt, 
+                             normal_edge_masks, normal_edge_masks_gt, 
+                             cluster_edge_masks, cluster_edge_masks_gt,
+                             step, prefix='comparison'):
+    """
+    Log raw input, ground truth, and prediction masks and original images to wandb.
+    """
+
+    # Prepare the raw input
+    color_raw = raw_input.detach().cpu().numpy()[0]*255 
+    color_raw = color_raw[:3, :, :]
+    color_raw = np.transpose(color_raw, (1, 2, 0))
+
+    # Convert predicted masks to 2D images and ensure they are (512, 512)
+    seg_mask_img = logits2image(seg_masks[0])
+    normal_edge_mask_img = logits2image(normal_edge_masks[0])
+    cluster_edge_mask_img = logits2image(cluster_edge_masks[0])
+    # print(f"seg_mask_img.shape:{seg_masks.shape}")
+    # print(f"normal_edge_mask_img.shape:{normal_edge_masks.shape}")
+    # print(f"cluster_edge_mask_img.shape:{cluster_edge_masks.shape}")
+    
+    # print(f"seg_mask_img max: {np.max(seg_mask_img)}, min: {np.min(seg_mask_img)}")
+    # print(f"normal_edge_mask_img max: {np.max(normal_edge_mask_img)}, min: {np.min(normal_edge_mask_img)}")
+    # print(f"cluster_edge_mask_img max: {np.max(cluster_edge_mask_img)}, min: {np.min(cluster_edge_mask_img)}")
+    # print(f"nuclei ratio: {np.sum(seg_mask_img[1] == 255)*100.0 / (512 * 512)}")
+    # print(f"edge ratio: {np.sum(normal_edge_mask_img[1] == 255)*100.0/ (512 * 512)}")
+    # print(f"cluster edge ratio: {np.sum(cluster_edge_mask_img[1] == 255)*100.0 / (512 * 512)}")
+
+    # Convert GT masks to 2D and ensure they are (512, 512)
+    seg_mask_gt_img = binary_gt2image(seg_masks_gt[0])
+    normal_edge_mask_gt = binary_gt2image(normal_edge_masks_gt[0])
+    cluster_edge_mask_gt = binary_gt2image(cluster_edge_masks_gt[0])
+
+    # Apply green colormap to GT masks
+    seg_mask_gt_img_rgb = apply_colormap(seg_mask_gt_img, color='green')
+    normal_edge_mask_gt_rgb = apply_colormap(normal_edge_mask_gt, color='green')
+    cluster_edge_mask_gt_rgb = apply_colormap(cluster_edge_mask_gt, color='green')
+
+    # Apply green colormap to prediction masks
+    seg_mask_img_rgb = np.zeros((512, 512, 3), dtype=np.uint8)
+    normal_edge_mask_img_rgb = np.zeros((512, 512, 3), dtype=np.uint8)
+    cluster_edge_mask_img_rgb = np.zeros((512, 512, 3), dtype=np.uint8)
+    
+    # print(f"seg_mask_img.shape:{seg_mask_img.shape}")
+    # print(f"normal_edge_mask_img.shape:{normal_edge_mask_img.shape}")
+    # print(f"cluster_edge_mask_img.shape:{cluster_edge_mask_img.shape}")
+
+    seg_mask_img_rgb[:, :, 1] = seg_mask_img[1]
+    normal_edge_mask_img_rgb[:, :, 1] = normal_edge_mask_img[1]
+    cluster_edge_mask_img_rgb[:, :, 1] = cluster_edge_mask_img[1]
+    # print(f"seg_mask_img_rgb max: {np.max(seg_mask_img_rgb)}, min: {np.min(seg_mask_img_rgb)}")
+    # print(f"normal_edge_mask_img_rgb max: {np.max(normal_edge_mask_img_rgb)}, min: {np.min(normal_edge_mask_img_rgb)}")
+    # print(f"cluster_edge_mask_img_rgb max: {np.max(cluster_edge_mask_img_rgb)}, min: {np.min(cluster_edge_mask_img_rgb)}")
+    
+    # seg_mask_img_rgb = apply_colormap(seg_mask_img, color='green')
+    # normal_edge_mask_img_rgb = apply_colormap(normal_edge_mask_img, color='green')
+    # cluster_edge_mask_img_rgb = apply_colormap(cluster_edge_mask_img, color='green')
+    
+    # print(f"seg_mask_img max: {np.max(seg_mask_img_rgb[:,:,1])}, min: {np.min(seg_mask_img_rgb[:,:,1])}")
+    # print(f"normal_edge_mask_img max: {normal_edge_mask_img_rgb[:,:,1]}, min: {np.min(normal_edge_mask_img_rgb[:,:,1])}")
+    # print(f"cluster_edge_mask_img max: {np.max(cluster_edge_mask_img_rgb[:,:,1])}, min: {cluster_edge_mask_img_rgb[:,:,1]}")
+    print("++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++")
+    print(f"nuclei rgb ratio: {np.sum(seg_mask_img_rgb[:,:,1] == 255)*100.0 / (512 * 512)}")
+    print(f"edge rgb ratio: {np.sum(normal_edge_mask_img_rgb[:,:,1] == 255)*100.0/ (512 * 512)}")
+    print(f"cluster rgb edge ratio: {np.sum(cluster_edge_mask_img_rgb[:,:,1] == 255)*100.0 / (512 * 512)}")
+    print("-------------------------------------------------------------")
+
+    # Prepare separator
+    separator = np.ones((512, 10, 3), dtype=np.uint8) * 255  # (512, 10, 3)
+    
+    # Concatenate images along width (axis=1)
+    combined_img = np.concatenate((
+        color_raw, separator, 
+        seg_mask_gt_img_rgb, separator, 
+        seg_mask_img_rgb, separator,
+        normal_edge_mask_gt_rgb, separator, 
+        normal_edge_mask_img_rgb, separator, 
+        cluster_edge_mask_gt_rgb, separator, 
+        cluster_edge_mask_img_rgb
+    ), axis=1)
+
+    # Ensure the image is in np.uint8 format for OpenCV
+    combined_img = combined_img.astype(np.uint8)
+    
+    # Add text annotations (if needed)
+    font = cv2.FONT_HERSHEY_SIMPLEX
+    font_scale = 0.5
+    color = (255, 255, 255)  # White color
+    thickness = 1
+    line_type = cv2.LINE_AA
+    text_y = 30
+
+    cv2.putText(combined_img, "Raw Input", (10, text_y), font, font_scale, color, thickness, line_type)
+    cv2.putText(combined_img, "GT", (512 + 20, text_y), font, font_scale, color, thickness, line_type)
+    cv2.putText(combined_img, "Pred.", (2 * 512 + 30, text_y), font, font_scale, color, thickness, line_type)
+    cv2.putText(combined_img, "GT_Edge", (3 * 512 + 40, text_y), font, font_scale, color, thickness, line_type)
+    cv2.putText(combined_img, "Pred._Edge", (4 * 512 + 50, text_y), font, font_scale, color, thickness, line_type)
+    cv2.putText(combined_img, "GT_ClusterE", (5 * 512 + 60, text_y), font, font_scale, color, thickness, line_type)
+    cv2.putText(combined_img, "Pred._ClusterE", (6 * 512 + 70, text_y), font, font_scale, color, thickness, line_type)
+
+    # Log to WandB
+    wandb.log({f"prediction_{step}": wandb.Image(combined_img, caption=f"Step {step}")})
+
+
+
+# def visualize(seg, gt, batch_pos):
+
+#     batch_size = 2 
+
+#     for i in range(batch_size):
+#         fig, axes = plt.subplots(1, 2, figsize=(10, 5))
+#     # Plot the first image (segmentation) in the first subplot
+#         axes[0].imshow(seg[i], cmap='viridis')  # Assuming cmap for segmentation
+#         axes[0].set_title(f'Segmentation {batch_pos+i}')
+
+#     # Plot the second image (ground truth) in the second subplot
+#         axes[1].imshow(gt[i], cmap='gray')  # Assuming grayscale for ground truth
+#         axes[1].set_title(f'Ground Truth {batch_pos+i}')
+
+#     # Optional: Turn off axis labels and ticks
+#     for ax in axes:
+#         ax.axis('off')
         
-    current_time = datetime.now().strftime("%m-%d_%H-%M-%S")
-    file_name = f'im_{current_time}_batch_{i+1}.png'
-    file_path = './log/vis_check'
-    file_name = os.path.join(file_path, file_name)
+#     current_time = datetime.now().strftime("%m-%d_%H-%M-%S")
+#     file_name = f'im_{current_time}_batch_{i+1}.png'
+#     file_path = './log/vis_check'
+#     file_name = os.path.join(file_path, file_name)
 
-    # Save the figure as an image file (e.g., PNG)
-    plt.savefig(file_name, bbox_inches='tight')
+#     # Save the figure as an image file (e.g., PNG)
+#     plt.savefig(file_name, bbox_inches='tight')
 
-    # Explicitly close the figure to prevent accumulation
-    plt.close()
+#     # Explicitly close the figure to prevent accumulation
+#     plt.close()
     
 
 
-import os
-import numpy as np
-from PIL import Image
-import uuid
-import datetime
+# import os
+# import numpy as np
+# from PIL import Image
+# import uuid
+# import datetime
 
-def write_images_cpu(img, label, pred, pred1, pred2, output_dir):
-    # pred, pred1, pred2 are binary
+# def write_images_cpu(img, label, pred, pred1, pred2, output_dir):
+#     # pred, pred1, pred2 are binary
     
-    #IMG_SIZE = 512
+#     #IMG_SIZE = 512
     
-    # Ensure the output directory exists or create it
-    os.makedirs(output_dir, exist_ok=True)
-    print(f"img.shape[0]:{img.shape[0]}")
+#     # Ensure the output directory exists or create it
+#     os.makedirs(output_dir, exist_ok=True)
+#     print(f"img.shape[0]:{img.shape[0]}")
     
-    # Loop through each item in the batch
-    for i in range(img.shape[0]):
-        # Generate a random filename for each image
-        filename = str(uuid.uuid4())[:8]
+#     # Loop through each item in the batch
+#     for i in range(img.shape[0]):
+#         # Generate a random filename for each image
+#         filename = str(uuid.uuid4())[:8]
         
-        # Convert the input image tensor to a NumPy array and transpose it
-        #input_img = img[i].cpu().numpy()  # Select the current item in the batch and copy to CPU
-        input_img = img[i]
-        #print(f"input_img shape:{input_img.shape}")
+#         # Convert the input image tensor to a NumPy array and transpose it
+#         #input_img = img[i].cpu().numpy()  # Select the current item in the batch and copy to CPU
+#         input_img = img[i]
+#         #print(f"input_img shape:{input_img.shape}")
           
-        #input_img = input_img.permute(1, 2, 0)   
-        input_img = input_img.transpose(1, 2, 0)
+#         #input_img = input_img.permute(1, 2, 0)   
+#         input_img = input_img.transpose(1, 2, 0)
 
-        # Create a PIL image for input
-        input_img = Image.fromarray((input_img * 255).astype(np.uint8), mode='RGB')
+#         # Create a PIL image for input
+#         input_img = Image.fromarray((input_img * 255).astype(np.uint8), mode='RGB')
 
-        # Combine directory and filename to create the full path for the input image
-        input_filename = f"{filename}_i.png"
-        input_path = os.path.join(output_dir, input_filename)
+#         # Combine directory and filename to create the full path for the input image
+#         input_filename = f"{filename}_i.png"
+#         input_path = os.path.join(output_dir, input_filename)
 
-        # Save the RGB input image as a PNG file
-        input_img.save(input_path, "PNG")
+#         # Save the RGB input image as a PNG file
+#         input_img.save(input_path, "PNG")
 
-        #print(f"Input Image {i + 1} saved to: {input_path}")
-        ################# o1   ##########
+#         #print(f"Input Image {i + 1} saved to: {input_path}")
+#         ################# o1   ##########
 
 
-        # Create a PIL image for prediction (grayscale)
-        #print(f"pred[i] shape: {pred[i].shape}")
-        pred_image = Image.fromarray((pred[i] * 255).astype(np.uint8), mode='L')
-        pred_filename = f"{filename}_o1.png"
-        pred_path = os.path.join(output_dir, pred_filename)
-        pred_image.save(pred_path, "PNG")
+#         # Create a PIL image for prediction (grayscale)
+#         #print(f"pred[i] shape: {pred[i].shape}")
+#         pred_image = Image.fromarray((pred[i] * 255).astype(np.uint8), mode='L')
+#         pred_filename = f"{filename}_o1.png"
+#         pred_path = os.path.join(output_dir, pred_filename)
+#         pred_image.save(pred_path, "PNG")
         
-        ################# o2   ##########
-        
-        
-        #print(f"pred1: {pred1[i]*255}")
-        pred_image = Image.fromarray((pred1[i] * 255).astype(np.uint8), mode='L')
-        #print(f"pred_image1={(binary_result * 255).astype(np.uint8)}")
-        pred_filename = f"{filename}_o2.png"
-        pred_path = os.path.join(output_dir, pred_filename)
-        pred_image.save(pred_path, "PNG")
+#         ################# o2   ##########
         
         
-        ################# o3   ##########
+#         #print(f"pred1: {pred1[i]*255}")
+#         pred_image = Image.fromarray((pred1[i] * 255).astype(np.uint8), mode='L')
+#         #print(f"pred_image1={(binary_result * 255).astype(np.uint8)}")
+#         pred_filename = f"{filename}_o2.png"
+#         pred_path = os.path.join(output_dir, pred_filename)
+#         pred_image.save(pred_path, "PNG")
         
-        pred_image = Image.fromarray((pred2[i] * 255).astype(np.uint8), mode='L')
-        pred_filename = f"{filename}_o3.png"
-        pred_path = os.path.join(output_dir, pred_filename)
-        pred_image.save(pred_path, "PNG")
+        
+#         ################# o3   ##########
+        
+#         pred_image = Image.fromarray((pred2[i] * 255).astype(np.uint8), mode='L')
+#         pred_filename = f"{filename}_o3.png"
+#         pred_path = os.path.join(output_dir, pred_filename)
+#         pred_image.save(pred_path, "PNG")
         
         
-        label_img = label[i]
-        label_filename = f"{filename}_l.png"
-        label_path = os.path.join(output_dir, label_filename)
-        label_img = Image.fromarray((label_img * 255).astype(np.uint8), mode='L')
-        label_img.save(label_path, "PNG")
+#         label_img = label[i]
+#         label_filename = f"{filename}_l.png"
+#         label_path = os.path.join(output_dir, label_filename)
+#         label_img = Image.fromarray((label_img * 255).astype(np.uint8), mode='L')
+#         label_img.save(label_path, "PNG")
         
-def combine_segmentations2(nuclei_seg, edge_seg):
-    # Create an empty RGB image
-    combined_image = np.zeros((512, 512, 3), dtype=np.uint8)
+# def combine_segmentations2(nuclei_seg, edge_seg):
+#     # Create an empty RGB image
+#     combined_image = np.zeros((512, 512, 3), dtype=np.uint8)
 
-    # Set nuclei segmentation (assuming nuclei_seg is binary: 1 for nuclei, 0 for background)
-    nuclei_color = [255, 255, 255]  # White color for nuclei
-    combined_image[nuclei_seg == 1] = nuclei_color
+#     # Set nuclei segmentation (assuming nuclei_seg is binary: 1 for nuclei, 0 for background)
+#     nuclei_color = [255, 255, 255]  # White color for nuclei
+#     combined_image[nuclei_seg == 1] = nuclei_color
 
-    # Set edge segmentation (assuming edge_seg is binary: 1 for edge, 0 for non-edge)
-    edge_color = [0, 255, 0]  # Green color for edge
-    combined_image[edge_seg == 1] = edge_color
+#     # Set edge segmentation (assuming edge_seg is binary: 1 for edge, 0 for non-edge)
+#     edge_color = [0, 255, 0]  # Green color for edge
+#     combined_image[edge_seg == 1] = edge_color
 
-    return Image.fromarray(combined_image)   
-
-
-def combine_segmentations3(nuclei_seg, edge_seg, cluster_edge_seg):
-    # Create an empty RGB image
-    combined_image = np.zeros((512, 512, 3), dtype=np.uint8)
-
-    # Set nuclei segmentation (assuming nuclei_seg is binary: 1 for nuclei, 0 for background)
-    nuclei_color = [255, 255, 255]  # White color for nuclei
-    combined_image[nuclei_seg == 1] = nuclei_color
-
-    # Set edge segmentation (assuming edge_seg is binary: 1 for edge, 0 for non-edge)
-    edge_color = [0, 255, 0]  # Green color for edge
-    combined_image[edge_seg == 1] = edge_color
-
-    # Set cluster edge segmentation (assuming cluster_edge_seg is binary: 1 for edge, 0 for non-edge)
-    cluster_edge_color = [255, 0, 0]  # Red color for cluster edge
-    combined_image[cluster_edge_seg == 1] = cluster_edge_color
-
-    return Image.fromarray(combined_image)
+#     return Image.fromarray(combined_image)   
 
 
+# def combine_segmentations3(nuclei_seg, edge_seg, cluster_edge_seg):
+#     # Create an empty RGB image
+#     combined_image = np.zeros((512, 512, 3), dtype=np.uint8)
+
+#     # Set nuclei segmentation (assuming nuclei_seg is binary: 1 for nuclei, 0 for background)
+#     nuclei_color = [255, 255, 255]  # White color for nuclei
+#     combined_image[nuclei_seg == 1] = nuclei_color
+
+#     # Set edge segmentation (assuming edge_seg is binary: 1 for edge, 0 for non-edge)
+#     edge_color = [0, 255, 0]  # Green color for edge
+#     combined_image[edge_seg == 1] = edge_color
+
+#     # Set cluster edge segmentation (assuming cluster_edge_seg is binary: 1 for edge, 0 for non-edge)
+#     cluster_edge_color = [255, 0, 0]  # Red color for cluster edge
+#     combined_image[cluster_edge_seg == 1] = cluster_edge_color
+
+#     return Image.fromarray(combined_image)
 
 
 
-def write_images(img, label, pred, pred1, pred2, output_dir):
 
-    # Ensure the output directory exists or create it
-    os.makedirs(output_dir, exist_ok=True)
+
+# def write_images(img, label, pred, pred1, pred2, output_dir):
+
+#     # Ensure the output directory exists or create it
+#     os.makedirs(output_dir, exist_ok=True)
     
-    # Loop through each item in the batch
-    for i in range(img.shape[0]):
-        # Generate a random filename for each image
-        filename = str(uuid.uuid4())[:8]
+#     # Loop through each item in the batch
+#     for i in range(img.shape[0]):
+#         # Generate a random filename for each image
+#         filename = str(uuid.uuid4())[:8]
         
-        # Process each tensor (img, label, pred, pred1, pred2)
-        # Convert the input image tensor to a PIL image
-        input_img = img[i].permute(1, 2, 0).mul(255).byte().cpu().numpy()
-        input_img = Image.fromarray(input_img, mode='RGB')
+#         # Process each tensor (img, label, pred, pred1, pred2)
+#         # Convert the input image tensor to a PIL image
+#         input_img = img[i].permute(1, 2, 0).mul(255).byte().cpu().numpy()
+#         input_img = Image.fromarray(input_img, mode='RGB')
 
-        # Repeat similar process for label, pred, pred1, pred2
-        # Assuming they are grayscale images (1 channel)
+#         # Repeat similar process for label, pred, pred1, pred2
+#         # Assuming they are grayscale images (1 channel)
         
-        def tensor_to_pil(tensor):
-        # Check if the tensor has 3 dimensions and squeeze if necessary
-            #print(f"tensor shape = {tensor.shape}")
-            if tensor.dim() == 3:
-                tensor = tensor.squeeze(0)  # Removes the first dimension if it's 1
-                #print(f"tensor2 dim = {tensor.shape}")
-            return Image.fromarray(tensor.mul(255).byte().cpu().numpy(), mode='L')
+#         def tensor_to_pil(tensor):
+#         # Check if the tensor has 3 dimensions and squeeze if necessary
+#             #print(f"tensor shape = {tensor.shape}")
+#             if tensor.dim() == 3:
+#                 tensor = tensor.squeeze(0)  # Removes the first dimension if it's 1
+#                 #print(f"tensor2 dim = {tensor.shape}")
+#             return Image.fromarray(tensor.mul(255).byte().cpu().numpy(), mode='L')
 
-        pred_image = tensor_to_pil(pred[i])
-        pred1_image = tensor_to_pil(pred1[i])
-        pred2_image = tensor_to_pil(pred2[i])
-        label_image = tensor_to_pil(label[i])
+#         pred_image = tensor_to_pil(pred[i])
+#         pred1_image = tensor_to_pil(pred1[i])
+#         pred2_image = tensor_to_pil(pred2[i])
+#         label_image = tensor_to_pil(label[i])
 
-        # Save the images
-        input_img.save(os.path.join(output_dir, f"{filename}_i.png"), "PNG")
-        pred_image.save(os.path.join(output_dir, f"{filename}_o1.png"), "PNG")
-        pred1_image.save(os.path.join(output_dir, f"{filename}_o2.png"), "PNG")
-        pred2_image.save(os.path.join(output_dir, f"{filename}_o3.png"), "PNG")
-        label_image.save(os.path.join(output_dir, f"{filename}_l.png"), "PNG")
+#         # Save the images
+#         input_img.save(os.path.join(output_dir, f"{filename}_i.png"), "PNG")
+#         pred_image.save(os.path.join(output_dir, f"{filename}_o1.png"), "PNG")
+#         pred1_image.save(os.path.join(output_dir, f"{filename}_o2.png"), "PNG")
+#         pred2_image.save(os.path.join(output_dir, f"{filename}_o3.png"), "PNG")
+#         label_image.save(os.path.join(output_dir, f"{filename}_l.png"), "PNG")
         
         
-        pred_image_np = pred[i].cpu().numpy()  # Move the tensor to CPU and then convert to numpy array
-        pred1_image_np = pred1[i].cpu().numpy()
-        pred2_image_np = pred2[i].cpu().numpy()
+#         pred_image_np = pred[i].cpu().numpy()  # Move the tensor to CPU and then convert to numpy array
+#         pred1_image_np = pred1[i].cpu().numpy()
+#         pred2_image_np = pred2[i].cpu().numpy()
 
 
-        # Combine segmentations
-        #combined_seg_image2 = combine_segmentations2(pred_image_np, pred1_image_np)
-        #combined_seg_image3 = combine_segmentations3(pred_image_np, pred1_image_np, pred2_image_np)
+#         # Combine segmentations
+#         #combined_seg_image2 = combine_segmentations2(pred_image_np, pred1_image_np)
+#         #combined_seg_image3 = combine_segmentations3(pred_image_np, pred1_image_np, pred2_image_np)
 
-        # Save or display the combined image
-        #combined_seg_image2.save(os.path.join(output_dir, f"{filename}_Green.png"), "PNG")
-        #combined_seg_image3.save(os.path.join(output_dir, f"{filename}_GreenRed.png"), "PNG")
+#         # Save or display the combined image
+#         #combined_seg_image2.save(os.path.join(output_dir, f"{filename}_Green.png"), "PNG")
+#         #combined_seg_image3.save(os.path.join(output_dir, f"{filename}_GreenRed.png"), "PNG")
 
 
 

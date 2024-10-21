@@ -201,8 +201,8 @@ def main():
 
                 img, instance_seg_mask, semantic_seg_mask,normal_edge_mask,cluster_edge_mask = d
                 
-                if epoch == 1:
-                    visualize_dataloader_output(i, img, instance_seg_mask, semantic_seg_mask,normal_edge_mask,cluster_edge_mask, save_dir='/root/autodl-tmp/data/MoNuSeg2020')
+                # if epoch == 1:
+                #     visualize_dataloader_output(i, img, instance_seg_mask, semantic_seg_mask,normal_edge_mask,cluster_edge_mask, save_dir='/root/autodl-tmp/data/MoNuSeg2020')
              
                 img = img.float()   
                 #print(f"img.shape:{img.shape}")

@@ -695,23 +695,13 @@ class SwinTransformerBlock_up(nn.Module):
         x2 = shortcut2 + self.drop_path(x2) # shortcut
         x3 = shortcut3 + self.drop_path(x3) # shortcut
         
-        x1 = self.norm1(x1) 
-        x2 = self.norm1(x2) 
-        x3 = self.norm1(x3) 
-        
-        
-        #expert_outputs = []
+        # x1 = self.norm1(x1) 
+        # x2 = self.norm1(x2) 
+        # x3 = self.norm1(x3) 
         
         x1 = self.experts[0](x1)
         x2 = self.experts[1](x2)
         x3 = self.experts[2](x3)
-
-        # for i, expert in enumerate(self.experts):
-        #     x1 = expert(x1)
-            #expert_weight = expert_weights[:, :, i:i + 1]
-            #print(f"expert_output shape: {expert_output.shape}, expert weight shape: {expert_weight.shape}")
-            #expert_outputs.append(expert_output * expert_weight)
-        #x = sum(expert_outputs)  # Sum the outputs of all experts
         
         # x = shortcut + self.drop_path(x)
         # x = x + self.drop_path(self.mlp(self.norm2(x)))
