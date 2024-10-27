@@ -54,8 +54,7 @@ RADIOLOGY_DATA_PATH = os.path.join(base_data_dir,'fluorescence') # Containing tw
 THYROID_DATA_PATH = os.path.join(base_data_dir,'thyroid') # Containing two folders named data and test
 LIZARD_DATA_PATH = os.path.join(base_data_dir,'CoNSeP')
 
-#checkpoint_path = "/root/autodl-tmp/3MoE/saved/model_Histology_MoE_p1_seed42_epoch133_loss_0.29590_1018_1445.pt"
-checkpoint_path = "/root/autodl-tmp/publish/MoE-NuSeg/saved/model_Histology_MoE_p1_seed42_epoch165_loss_0.29697_1021_1600.pt"
+checkpoint_path = "/root/autodl-tmp/publish/MoE-NuSeg/saved/model_Histology_MoE_p1_seed42_epoch117_loss_0.13763_1027_1809.pt"
 
 
 def main():
@@ -278,11 +277,9 @@ def main():
             if phase == 'train':
                 train_loss.append(batch_loss)
                 # wandb.log({"Seg Loss/train": batch_loss_seg})
-                # wandb.log({"epoch time/train": e-s})
             else:
                 test_loss.append(batch_loss_seg)
                 wandb.log({"Seg Loss per batch": batch_loss_seg})
-                #print(f"Seg Loss per batch in epoch:{batch_loss_seg}")
 
             if phase == 'val' and batch_loss_seg < best_loss:
                 best_loss = batch_loss_seg

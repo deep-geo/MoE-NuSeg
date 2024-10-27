@@ -680,16 +680,12 @@ class SwinTransformerBlock_up(nn.Module):
             x = shifted_x
         x = x.view(B, H * W, C)
 
-        # MoE with fixed rules
-        # mlp_head = self.mlp_heads[data_type]      
-        # x = shortcut + self.drop_path(x)
-        # x = x + self.drop_path(mlp_head(self.norm2(x)))
-
         # MoE with gating network
         x = shortcut + self.drop_path(x) # shortcut
-        x = self.norm1(x)        
+        x = self.norm1(x)  
+        
+        expert_input = x # Store input for second residual connection
         expert_weights = self.gating_network(x)  # Compute expert weights using gating network
-        # print(f"+++++++++++++++++++++++++++++++++++++++++++++")
         # print(f"expert_weights shape: {expert_weights.shape}, \n expert_weights={expert_weights}")
     
         
@@ -729,6 +725,8 @@ class SwinTransformerBlock_up(nn.Module):
         # print(f"expert_outputs={expert_outputs}")
         # print(f"sum expert_outputs={sum(expert_outputs.shape)}")
         x = sum(expert_outputs)  # Sum the outputs of all experts
+        x = expert_input + self.drop_path(x)
+        
         return x
 
     def extra_repr(self) -> str:
