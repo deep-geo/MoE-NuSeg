@@ -694,17 +694,19 @@ class SwinTransformerBlock_up(nn.Module):
         x1 = shortcut1 + self.drop_path(x1) # shortcut
         x2 = shortcut2 + self.drop_path(x2) # shortcut
         x3 = shortcut3 + self.drop_path(x3) # shortcut
-        
-        # x1 = self.norm1(x1) 
-        # x2 = self.norm1(x2) 
-        # x3 = self.norm1(x3) 
-        
+
+        expert_input1 = x1
+        expert_input2 = x2
+        expert_input3 = x3
+
         x1 = self.experts[0](x1)
         x2 = self.experts[1](x2)
         x3 = self.experts[2](x3)
-        
-        # x = shortcut + self.drop_path(x)
-        # x = x + self.drop_path(self.mlp(self.norm2(x)))
+
+        # Adding second residual connection
+        x1 = expert_input1 + self.drop_path(x1)
+        x2 = expert_input2 + self.drop_path(x2)
+        x3 = expert_input3 + self.drop_path(x3)s
 
         return x1, x2, x3
 
