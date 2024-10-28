@@ -40,7 +40,19 @@ data, ultimately leading to superior segmentation performance.
 ## Results
 
 Extensive experiments validate our model's effectiveness on test images. Our approach is designed for easy integration into existing clinical workflows.
+
+From left to right, the layout displays the following sequence:
+
+	1.	Raw Input Image
+	2.	Ground Truth (GT) Mask
+	3.	Predicted Mask
+	4.	Ground Truth Edge Mask
+	5.	Predicted Edge Mask
+	6.	Ground Truth Cluster Edge Mask
+	7.	Predicted Cluster Edge Mask
+
 <img width="927" alt="image" src="https://github.com/user-attachments/assets/a4480fff-8093-4ae2-a6f4-96baab946d2d">
+This layout provides a side-by-side comparison of the input image, ground truth, and predictions, allowing for a clear assessment of the model’s segmentation accuracy across both edge and cluster edge detection.
 
 
 ## Architecture
