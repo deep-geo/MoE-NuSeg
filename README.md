@@ -40,6 +40,8 @@ data, ultimately leading to superior segmentation performance.
 ## Results
 
 Extensive experiments validate our model's effectiveness on test images. Our approach is designed for easy integration into existing clinical workflows.
+<img width="927" alt="image" src="https://github.com/user-attachments/assets/a4480fff-8093-4ae2-a6f4-96baab946d2d">
+
 
 ## Architecture
 
