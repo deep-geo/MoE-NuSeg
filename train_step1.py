@@ -1,4 +1,4 @@
-# MoE (phase 1) with 3 experts with Physical Significance using data_type = 0,1,2, phase 1: train 3 experts with Physical Significance without router
+# MoE-NuSeg (phase 1) train 3 experts with Physical Significance (Nuclei, Normal Edge and Cluster Edge) without gating network
 import copy
 import logging
 import math
@@ -167,9 +167,13 @@ def main():
     num_classes = 2
     
     
-    ce_loss1 = BCE_Loss_logits()
-    ce_loss2 = BCE_Loss_logits()    
-    ce_loss3 = BCE_Loss_logits()
+    # ce_loss1 = BCE_Loss_logits()
+    # ce_loss2 = BCE_Loss_logits()    
+    # ce_loss3 = BCE_Loss_logits()
+    
+    ce_loss1 = CrossEntropyLoss()
+    ce_loss2 = CrossEntropyLoss()
+    ce_loss3 = CrossEntropyLoss()
 
     
     dice_loss1 = DiceLoss(num_classes)

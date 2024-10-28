@@ -1,4 +1,4 @@
-# MoE (phase 2) : train the router for the 3 experts
+# MoE-NuSeg (phase 2) : train the gating network together with 3 experts
 import copy
 import logging
 import math
@@ -10,7 +10,6 @@ import torch
 import torch.nn as nn
 from torch.nn import CrossEntropyLoss, Dropout, Softmax, Linear, Conv2d, LayerNorm
 from torch.nn.modules.loss import CrossEntropyLoss
-#from torchvision import transforms
 import torch.utils.checkpoint as checkpoint
 import torch.utils.data as data
 from torch.utils.data import Dataset,DataLoader,TensorDataset
@@ -32,11 +31,9 @@ from sklearn.metrics import f1_score, accuracy_score
 import wandb
 import warnings
 
-#from dataset import MyDataset
 from dataset import MyDataset
 from utils import *
 from models.transnuseg_MoE_p2_prior import TransNuSeg, SwinTransformerBlock_up
-#from test import test_main
 from miseval import evaluate
 
 from itertools import chain
@@ -49,13 +46,12 @@ warnings.filterwarnings("ignore", category=UserWarning, message="torch.meshgrid"
 device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
 
 base_data_dir = "/root/autodl-tmp/data"
-HISTOLOGY_DATA_PATH = os.path.join(base_data_dir, 'histology') #HISTOLOGY_DATA_PATH  Containing two folders named data and test
+HISTOLOGY_DATA_PATH = os.path.join(base_data_dir, 'histology') # Containing two folders named data and test
 RADIOLOGY_DATA_PATH = os.path.join(base_data_dir,'fluorescence') # Containing two folders named data and test
 THYROID_DATA_PATH = os.path.join(base_data_dir,'thyroid') # Containing two folders named data and test
-LIZARD_DATA_PATH = os.path.join(base_data_dir,'CoNSeP')
+LIZARD_DATA_PATH = os.path.join(base_data_dir,'lizard') #Containing two folders named data and test
 
-checkpoint_path = "/root/autodl-tmp/publish/MoE-NuSeg/saved/model_Histology_MoE_p1_seed42_epoch117_loss_0.13763_1027_1809.pt"
-
+checkpoint_path = "/root/autodl-tmp/publish/MoE-NuSeg/saved/model_Histology_MoE_p1_seed42_epoch83_loss_0.13363_1028_1933.pt"
 
 def main():
     '''
@@ -76,7 +72,6 @@ def main():
     parser.add_argument("--alpha",required=True,default=0.3, help="coeffiecient of the weight of nuclei mask loss")
     parser.add_argument("--beta",required=True,default=0.35, help="coeffiecient of the weight of normal edge loss")
     parser.add_argument("--gamma",required=True,default=0.35, help="coeffiecient of the weight of cluster edge loss")
-    # parser.add_argument("--sharing_ratio",required=True,default=0.5, help=" ratio of sharing proportion of decoders")
     parser.add_argument("--random_seed",required=True, help="random seed")
     parser.add_argument("--batch_size",required=True, help="batch size")
     parser.add_argument("--dataset",required=True,default="Histology", help="Histology, Radiology")
@@ -92,7 +87,6 @@ def main():
     alpha = float(args.alpha)
     beta = float(args.beta)
     gamma = float(args.gamma)
-    #sharing_ratio = float(args.sharing_ratio)
     batch_size=int(args.batch_size)
     random_seed = int(args.random_seed)
     num_epoch = int(args.num_epoch)
@@ -121,8 +115,6 @@ def main():
     else:
         print("Wrong Dataset type")
         return 0
-    
-
  
     wandb.init(project = dataset, name = "MoE p2 seed" + str(random_seed))
 
@@ -194,10 +186,8 @@ def main():
     softmax = torch.nn.Softmax(dim=1)
 
     optimizer = optim.Adam(model.parameters(), lr=base_lr)
-    #lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=20, gamma=0.95, last_epoch=-1)
     lr_scheduler = CosineAnnealingLR(optimizer, T_max=400, eta_min=1e-8)
-
-    
+ 
     best_loss = 100
     best_epoch = 0
     
@@ -229,7 +219,6 @@ def main():
                 #print('input img shape: ', img.shape)
 
                 output1,output2,output3 = model(img)
-                
                 #print('output1 shape ', output1.shape)
                 
                 ce_loss_seg = ce_loss1(output1, semantic_seg_mask.long())
@@ -369,7 +358,6 @@ def main():
     "Result/Specificity": average_spec*100.0,
     "Result/Precision": average_prec*100.0
     })
-    
     wandb.finish()
 
     print(f"average_Dice: {average_dice}\n"

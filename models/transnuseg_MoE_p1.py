@@ -706,7 +706,7 @@ class SwinTransformerBlock_up(nn.Module):
         # Adding second residual connection
         x1 = expert_input1 + self.drop_path(x1)
         x2 = expert_input2 + self.drop_path(x2)
-        x3 = expert_input3 + self.drop_path(x3)s
+        x3 = expert_input3 + self.drop_path(x3)
 
         return x1, x2, x3
 
