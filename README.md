@@ -54,27 +54,27 @@ MoE-NuSeg training is organized into two stages. Each stage is run using a shell
 
 ### Stage 1: Initial Training
 
-	1.	Run Stage 1 by executing the following command:
 
-sh main.sh
+1.	Run Stage 1 by executing the following command:
+    
+	sh main.sh
 
-	•	This will call train_step1.py to initiate the first stage of training.
-	•	The script generates a weight file upon completion, which will be used in the second stage of training.
+•	This will call train_step1.py to initiate the first stage of training.
+•	The script generates a weight file upon completion, which will be used in the second stage of training.
 
-	2.	Update the Weight File Path:
-	•	Once Stage 1 completes, locate the generated weight file.
-	•	Open train_step2.py and update the path to the generated weight file from Stage 1 so it can be loaded in Stage 2.
+2.	Update the Weight File Path:
+•	Once Stage 1 completes, locate the generated weight file.
+•	Open train_step2.py and update the path to the generated weight file from Stage 1 so it can be loaded in Stage 2.
 
 ### Stage 2: Fine-Tuning
 
-	1.	Run Stage 2 by executing the following command:
+1.	Run Stage 2 by executing the following command:
 
-sh main_p2.sh
+	sh main_p2.sh
 
-	•	This command calls train_step2.py, which continues training using the weight file from Stage 1.
+•	This command calls train_step2.py, which continues training using the weight file from Stage 1.
 
 By following these steps, you’ll complete both stages of training, generating the final MoE-NuSeg model weights for evaluation and deployment.
-
 
 
 
@@ -82,7 +82,7 @@ By following these steps, you’ll complete both stages of training, generating 
 
 If you find this work useful for your research, please consider citing:
 
-Wu, X., Shen, Y., Zhao, Q., Kang, Y., & Zhang, W. (2025). MoE-NuSeg: Enhancing nuclei segmentation in histology images with a two-stage Mixture of Experts network. Alexandria Engineering Journal, 110, 557-566. https://doi.org/10.1016/j.aej.2024.10.011
+Wu, X., Shen, Y., Zhao, Q., Kang, Y., & Zhang, W. (2025). MoE-NuSeg: Enhancing nuclei segmentation in histology images with a two-stage Mixture of Experts network. Alexandria Engineering Journal, 110, 557-566. 
 
 You can access the full paper through ScienceDirect at the following link: MoE-NuSeg on ScienceDirect:
 https://www.sciencedirect.com/science/article/pii/S1110016824011669
