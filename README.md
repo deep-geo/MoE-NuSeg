@@ -48,6 +48,36 @@ Extensive experiments validate our model's effectiveness on test images. Our app
 
 
 
+## How to Run the Code
+
+MoE-NuSeg training is organized into two stages. Each stage is run using a shell script that calls the respective Python script for that stage. Follow the steps below to train and generate the final model weights.
+
+### Stage 1: Initial Training
+
+	1.	Run Stage 1 by executing the following command:
+
+sh main.sh
+
+	•	This will call train_step1.py to initiate the first stage of training.
+	•	The script generates a weight file upon completion, which will be used in the second stage of training.
+
+	2.	Update the Weight File Path:
+	•	Once Stage 1 completes, locate the generated weight file.
+	•	Open train_step2.py and update the path to the generated weight file from Stage 1 so it can be loaded in Stage 2.
+
+### Stage 2: Fine-Tuning
+
+	1.	Run Stage 2 by executing the following command:
+
+sh main_p2.sh
+
+	•	This command calls train_step2.py, which continues training using the weight file from Stage 1.
+
+By following these steps, you’ll complete both stages of training, generating the final MoE-NuSeg model weights for evaluation and deployment.
+
+
+
+
 ## Citation
 
 If you find this work useful for your research, please consider citing:
