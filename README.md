@@ -91,6 +91,16 @@ By following these steps, you’ll complete both stages of training, generating 
 
 
 
+
+
+<img width="965" alt="image" src="https://github.com/user-attachments/assets/0ded5f3b-3d63-4e6f-8289-fae5f90f782c">
+Validation Loss Curves for Stage 1 and Stage 2 Training Across Six Loss Components
+
+This plot displays the validation loss curves for each of the six components over the course of training in both Stage 1 and Stage 2, providing a detailed view of performance trends and convergence behavior at each stage. Training utilizes early stopping, halting after 50 epochs without improvement in nuclei segmentation accuracy.
+
+
+
+
 ## Citation
 
 If you find this work useful for your research, please consider citing:
