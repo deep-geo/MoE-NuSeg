@@ -1,0 +1,18 @@
+# Ignore Jupyter notebook checkpoints
+.ipynb_checkpoints/
+
+# Ignore Python cache directories
+__pycache__/
+
+# Ignore logs
+log/
+
+# Ignore model checkpoints and cache files
+models/.ipynb_checkpoints/
+models/__pycache__/
+
+# Ignore saved model files
+saved/
+
+# Ignore Weights & Biases logs and files
+wandb/
