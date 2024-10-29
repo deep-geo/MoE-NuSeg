@@ -90,13 +90,11 @@ MoE-NuSeg training is organized into two stages. Each stage is run using a shell
 By following these steps, you’ll complete both stages of training, generating the final MoE-NuSeg model weights for evaluation and deployment.
 
 
-
-
+## Comparison of Validation Loss Curves for Stage 1 and Stage 2 Training Across Six Loss Components
 
 <img width="965" alt="image" src="https://github.com/user-attachments/assets/0ded5f3b-3d63-4e6f-8289-fae5f90f782c">
-Validation Loss Curves for Stage 1 and Stage 2 Training Across Six Loss Components
 
-This plot displays the validation loss curves for each of the six components over the course of training in both Stage 1 and Stage 2, providing a detailed view of performance trends and convergence behavior at each stage. Training utilizes early stopping, halting after 50 epochs without improvement in nuclei segmentation accuracy.
+The plot shows the validation loss curves for each of the six components (Cross-Entropy and Dice Loss for each of the three experts) over the course of training in both Stage 1 and Stage 2, providing a detailed view of performance trends and convergence at each stage. Training incorporates early stopping, halting after 50 epochs without improvement in nuclei segmentation accuracy, indicating that the lowest loss is reached before the full 50 epochs.
 
 
 
