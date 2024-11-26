@@ -1,43 +1,44 @@
 # MoE-NuSeg (phase 2) : train the gating network together with 3 experts
-import copy
-import logging
-import math
-import cv2
-import os
-from PIL import Image
 
+import os
+import sys
+import time
+import random
+import argparse
+import logging
+import copy
+from datetime import datetime
+from os.path import join as pjoin
+
+# Numerical and Scientific Libraries
+import numpy as np
+import math
+from scipy import ndimage
+
+# PyTorch Core and Utilities
 import torch
 import torch.nn as nn
-from torch.nn import CrossEntropyLoss, Dropout, Softmax, Linear, Conv2d, LayerNorm
-from torch.nn.modules.loss import CrossEntropyLoss
-import torch.utils.checkpoint as checkpoint
-import torch.utils.data as data
-from torch.utils.data import Dataset,DataLoader,TensorDataset
 import torch.optim as optim
+from torch.utils.data import Dataset, DataLoader
+from torch.nn import CrossEntropyLoss
 from torch.optim.lr_scheduler import CosineAnnealingLR
 
-from einops import rearrange
-from timm.models.layers import DropPath, to_2tuple, trunc_normal_
-
-import numpy as np
+# Visualization
 import matplotlib.pyplot as plt
-import random
-import time
-import sys
-from datetime import datetime
-import argparse
-from sklearn.metrics import f1_score, accuracy_score
 
-import wandb
-import warnings
-
-from dataset import MyDataset
-from utils import *
-from models.transnuseg_MoE_p2_prior import TransNuSeg, SwinTransformerBlock_up
+# Evaluation and Metrics
 from miseval import evaluate
 
-from itertools import chain
+# Model Utilities and Libraries
+from timm.models.layers import DropPath
+from einops import rearrange
 
+# Custom Modules
+from utils import *
+from dataset_radio import MyDataset
+from models.transnuseg_MoE_p2_prior import TransNuSeg as MoE_p2
+
+# Logging and Tracking
 import wandb
 import warnings
 
@@ -51,7 +52,7 @@ RADIOLOGY_DATA_PATH = os.path.join(base_data_dir,'fluorescence') # Containing tw
 THYROID_DATA_PATH = os.path.join(base_data_dir,'thyroid') # Containing two folders named data and test
 LIZARD_DATA_PATH = os.path.join(base_data_dir,'lizard') #Containing two folders named data and test
 
-checkpoint_path = "/root/autodl-tmp/publish/MoE-NuSeg/saved/model_Histology_MoE_p1_seed42_epoch83_loss_0.13363_1028_1933.pt"
+checkpoint_path = "/root/autodl-tmp/MoE-NuSeg/saved/model_Radiology_MoE_p1_seed42_epoch147_loss_0.08226_1125_1452.pt"
 
 def main():
     '''
@@ -98,6 +99,8 @@ def main():
     torch.manual_seed(random_seed)
     torch.cuda.manual_seed(random_seed)
     torch.cuda.manual_seed_all(random_seed)
+    torch.backends.cudnn.deterministic = True  # Ensure deterministic operations
+    torch.backends.cudnn.benchmark = False    # Disable auto-tuning for reproducibility
 
     IMG_SIZE = 512
     if dataset == "Radiology":
@@ -118,7 +121,7 @@ def main():
  
     wandb.init(project = dataset, name = "MoE p2 seed" + str(random_seed))
 
-    model = TransNuSeg(img_size=IMG_SIZE)
+    model = MoE_p2(img_size=IMG_SIZE)
     checkpoint = torch.load(checkpoint_path)
     model.load_state_dict(checkpoint, strict=False)
     print(f"=========Phase 2 training: Phase 1 model was loaded, Retrain all==========")
@@ -160,7 +163,7 @@ def main():
     test_set_size = len(total_data) - train_set_size - val_set_size
     logging.info(f"train size {train_set_size}, val size {val_set_size}, test size {test_set_size}")
     
-    train_set, val_set, test_set = data.random_split(total_data, [train_set_size, val_set_size, test_set_size],generator=torch.Generator().manual_seed(random_seed))
+    train_set, val_set, test_set = random_split(total_data, [train_set_size, val_set_size, test_set_size],generator=torch.Generator().manual_seed(random_seed))
 
     trainloader = torch.utils.data.DataLoader(train_set, batch_size=batch_size, shuffle=True, drop_last=True)
     valloader = torch.utils.data.DataLoader(val_set, batch_size=batch_size, shuffle=False, drop_last=True)
@@ -178,12 +181,22 @@ def main():
     num_classes=2
     
     ce_loss1 = CrossEntropyLoss()
-    dice_loss1 = DiceLoss(num_classes)
     ce_loss2 = CrossEntropyLoss()
-    dice_loss2 = DiceLoss(num_classes)
     ce_loss3 = CrossEntropyLoss()
+    
+    dice_loss1 = DiceLoss(num_classes)
+    dice_loss2 = DiceLoss(num_classes)
     dice_loss3 = DiceLoss(num_classes)
-    softmax = torch.nn.Softmax(dim=1)
+    
+    HDLoss_nor = HausdorffLoss()
+    bf1_nor = BoundaryF1Score(tolerance=2)
+    dice_nor = DiceCoefficientBoundary(tolerance=2)
+    pr_nor = ContourPrecisionRecall(tolerance=2)
+    
+    HDLoss_clu = HausdorffLoss()
+    bf1_clu = BoundaryF1Score(tolerance=2)
+    dice_clu = DiceCoefficientBoundary(tolerance=2)
+    pr_clu = ContourPrecisionRecall(tolerance=2)
 
     optimizer = optim.Adam(model.parameters(), lr=base_lr)
     lr_scheduler = CosineAnnealingLR(optimizer, T_max=400, eta_min=1e-8)
@@ -237,17 +250,45 @@ def main():
                 
 
                 if phase == 'val':
-                    wandb.log({"CE Loss Seg":ce_loss_seg, "Dice Loss Seg":dice_loss_seg})
-                    wandb.log({"CE Loss Edge":ce_loss_nor, "Dice Loss Edge":dice_loss_nor})
-                    wandb.log({"CE Loss Cluster":ce_loss_clu, "Dice Loss Cluster":dice_loss_clu})
+                    wandb.log({
+                        "CE Loss Seg": ce_loss_seg, 
+                        "Dice Loss Seg": dice_loss_seg,
+                        "CE Loss Edge": ce_loss_nor,
+                        "Dice Loss Edge": dice_loss_nor,
+                        "CE Loss Cluster": ce_loss_clu,
+                        "Dice Loss Cluster": dice_loss_clu
+                    })
+
+                    BF1_nor = bf1_nor(output2, normal_edge_mask.float())
+                    BDSC_nor = dice_nor(output2, normal_edge_mask.float())
+                    BPrec_nor, BRecall_nor = pr_nor(output2, normal_edge_mask.float())
+                    HDF_loss_nor = HDLoss_nor(output2, normal_edge_mask)
+                    
+                    HDF_loss_clu = HDLoss_clu(output3, cluster_edge_mask.float())
+                    BF1_clu = bf1_clu(output3, cluster_edge_mask.float())
+                    BDSC_clu = dice_clu(output3, cluster_edge_mask.float())
+                    BPrec_clu, BRecall_clu = pr_clu(output3, cluster_edge_mask.float())
+                    wandb.log({
+                        "HDF_loss_nor": HDF_loss_nor.item(),
+                        "BF1_nor": BF1_nor.item(),
+                        "BDSC_nor": BDSC_nor.item(),
+                        "BPrec_nor": BPrec_nor.item(),
+                        "BRecall_nor": BRecall_nor.item(),
+                        "HDF_loss_clu": HDF_loss_nor.item(),
+                        "BF1_clu": BF1_clu.item(),
+                        "BDSC_clu": BDSC_clu.item(),
+                        "BPrec_clu": BPrec_clu.item(),
+                        "BRecall_clu": BRecall_clu.item()
+                    })
+                    
+                    
                     if epoch%30 == 1:
                         log_predictions_to_wandb(img, output1, semantic_seg_mask, output2, normal_edge_mask, output3, cluster_edge_mask, epoch, prefix='comparison')
 
                 ### calculating total loss
                 loss = alpha*loss_seg  + beta*loss_nor + gamma*loss_clu 
-                if phase == 'val':
-                    wandb.log({"Total Loss":loss})
-                    #print(f"Total Loss:{loss}")
+                wandb.log({"Total Loss":loss})
+                #print(f"Total Loss:{loss}")
 
                 running_loss+=loss.item()
                 running_loss_seg += loss_seg.item() ## Loss for nuclei segmantation
@@ -275,8 +316,6 @@ def main():
                 best_epoch = epoch+1
                 best_model_wts = copy.deepcopy(model.state_dict())
                 logging.info("Best val seg loss {} save at epoch {}".format(best_loss,epoch+1))
-
-    draw_loss(train_loss,test_loss,str(now))
     
     create_dir('./saved')
     
@@ -290,17 +329,13 @@ def main():
     model.load_state_dict(best_model_wts)
     model.eval()
     
-    dices = []
-    f1s= []
-    ious = []
-    accuracies = []
-    precs = []
-    senss =[]
-    specs = []
+    dices, f1s, ious, accuracies, precs, senss, specs = [], [], [], [], [], [], []
+    dices_pred1, bf1s_pred1, bdscs_pred1, bprecs_pred1, brecalls_pred1 = [], [], [], [], []
+    dices_pred2, bf1s_pred2, bdscs_pred2, bprecs_pred2, brecalls_pred2 = [], [], [], [], []
 
     with torch.no_grad():
         for i, d in enumerate(testloader):
-            img, _, semantic_seg_mask,_,_ = d
+            img, _, semantic_seg_mask,nor_edge_mask,clu_edge_mask = d
 
             img = img.float()    
             img = img.to(device)
@@ -341,22 +376,76 @@ def main():
             senss.append(sens)
             specs.append(spec)
             
-    average_dice = np.mean(dices)
-    average_f1 = np.mean(f1)
-    average_iou = np.mean(ious)
-    average_accuracy = np.mean(accuracies)
-    average_prec = np.mean(precs)
-    average_sens = np.mean(sens)
-    average_spec = np.mean(spec) 
+            # **Secondary prediction (pred1) evaluation**
+            # Metrics for normal edge segmentation (pred1)
+            pred1_probs = torch.sigmoid(pred1)  # Sigmoid for binary prediction
+            pred1_classes = (pred1_probs > 0.5).long()
+
+            HDF_loss_nor = HDLoss_nor(pred1_probs, normal_edge_mask.float())
+            BF1_nor = bf1_nor(pred1_classes, normal_edge_mask)
+            BDSC_nor = dice_nor(pred1_classes, normal_edge_mask)
+            BPrec_nor, BRecall_nor = pr_nor(pred1_classes, normal_edge_mask)
+            
+            dices_pred1.append(HDF_loss_nor.item())
+            bf1s_pred1.append(BF1_nor.item())
+            bdscs_pred1.append(BDSC_nor.item())
+            bprecs_pred1.append(BPrec_nor.item())
+            brecalls_pred1.append(BRecall_nor.item())
+            
+            # **Thirdary prediction (pred2) evaluation**
+            # Metrics for normal edge segmentation (pred2)
+            pred2_probs = torch.sigmoid(pred2)  # Sigmoid for binary prediction
+            pred2_classes = (pred2_probs > 0.5).long()
+
+            HDF_loss_clu = HDLoss_clu(pred2, clu_edge_mask.float())
+            BF1_clu = bf1_clu(pred2_classes, clu_edge_mask)
+            BDSC_clu = dice_clu(pred2_classes, clu_edge_mask)
+            BPrec_clu, BRecall_clu = pr_clu(pred1_classes, clu_edge_mask)
+
+            dices_pred2.append(HDF_loss_clu.item())
+            bf1s_pred2.append(BF1_clu.item())
+            bdscs_pred2.append(BDSC_clu.item())
+            bprecs_pred2.append(BPrec_clu.item())
+            brecalls_pred2.append(BRecall_clu.item())
+            
+    average_dice = np.mean(dices)* 100.0
+    average_f1 = np.mean(f1)* 100.0
+    average_iou = np.mean(ious)* 100.0
+    average_accuracy = np.mean(accuracies)* 100.0
+    average_prec = np.mean(precs)* 100.0
+    average_sens = np.mean(sens)* 100.0
+    average_spec = np.mean(spec)* 100.0
+    
+    average_HDF_nor = np.mean(dices_pred1)
+    average_BF1_nor = np.mean(bf1s_pred1)* 100.0
+    average_BDSC_nor = np.mean(bdscs_pred1)* 100.0
+    average_BPrec_nor = np.mean(bprecs_pred1)* 100.0
+    average_BRecall_nor = np.mean(brecalls_pred1)* 100.0
+    
+    average_HDF_clu = np.mean(dices_pred2)
+    average_BF1_clu = np.mean(bf1s_pred2)* 100.0
+    average_BDSC_clu = np.mean(bdscs_pred2)* 100.0
+    average_BPrec_clu = np.mean(bprecs_pred2)* 100.0
+    average_BRecall_clu = np.mean(brecalls_pred2)* 100.0
     
     wandb.log({
-    "Result/Dice": average_dice *100.0,
-    "Result/F1": average_f1*100.0,
-    "Result/IoU_JI": average_iou*100.0,
-    "Result/Accuracy": average_accuracy*100.0,
-    "Result/Sensitivity": average_sens*100.0,
-    "Result/Specificity": average_spec*100.0,
-    "Result/Precision": average_prec*100.0
+    "Result/Dice": average_dice,
+    "Result/F1": average_f1,
+    "Result/IoU_JI": average_iou,
+    "Result/Accuracy": average_accuracy,
+    "Result/Sensitivity": average_sens,
+    "Result/Specificity": average_spec,
+    "Result/Precision": average_prec,
+    "Result_Boundary_Normal/HDF_Loss": average_HDF_nor,
+    "Result_Boundary_Normal/F1": average_BF1_nor,
+    "Result_Boundary_Normal/DSC": average_BDSC_nor,
+    "Result_Boundary_Normal/Precision": average_BPrec_nor,
+    "Result_Boundary_Normal/Recall": average_BRecall_nor,
+    "Result_Boundary_Cluster/HDF_Loss": average_HDF_clu,
+    "Result_Boundary_Cluster/F1": average_BF1_clu,
+    "Result_Boundary_Cluster/DSC": average_BDSC_clu,
+    "Result_Boundary_Cluster/Precision": average_BPrec_clu,
+    "Result_Boundary_Cluster/Recall": average_BRecall_clu
     })
     wandb.finish()
 
