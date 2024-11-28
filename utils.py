@@ -280,7 +280,7 @@ class HausdorffLoss(nn.Module):
 
 
 class DiceCoefficientBoundary(nn.Module):
-    def __init__(self, tolerance=2):
+    def __init__(self, tolerance=1):
         """
         Initialize the DiceCoefficientBoundary class with a tolerance level.
         """
@@ -305,6 +305,49 @@ class DiceCoefficientBoundary(nn.Module):
         dice_score = (2 * intersection) / (union + 1e-8)
 
         return dice_score
+    
+
+class BoundaryIoU(nn.Module):
+    def __init__(self, tolerance=1):
+        """
+        Initialize the BoundaryIoU module with a tolerance level.
+        
+        Args:
+            tolerance (int): The pixel tolerance for boundary matching.
+        """
+        super(BoundaryIoU, self).__init__()
+        self.tolerance = tolerance
+
+    def forward(self, pred_edge, gt_edge):
+        """
+        Calculate the Boundary IoU for predicted and ground truth edge maps.
+
+        Args:
+            pred_edge (torch.Tensor): Predicted edge logits (B, H, W).
+            gt_edge (torch.Tensor): Ground truth edge binary mask (B, H, W).
+
+        Returns:
+            torch.Tensor: Boundary IoU score.
+        """
+        device = pred_edge.device
+        gt_edge = gt_edge.to(device)
+
+        # Ensure predicted edges are probabilities (apply sigmoid if logits are provided)
+        pred_edge = torch.sigmoid(pred_edge)
+
+        # Dilate the ground truth and predicted edges
+        kernel_size = (2 * self.tolerance + 1)
+        gt_dilated = F.max_pool2d(gt_edge.float(), kernel_size=kernel_size, stride=1, padding=self.tolerance)
+        pred_dilated = F.max_pool2d(pred_edge.float(), kernel_size=kernel_size, stride=1, padding=self.tolerance)
+
+        # Compute intersection and union
+        intersection = (pred_edge * gt_dilated).sum()  # Sum over height and width
+        union = ((pred_dilated + gt_dilated) > 0).float().sum()
+
+        # Compute Boundary IoU
+        boundary_iou = intersection / (union + 1e-10)
+
+        return boundary_iou.mean()  # Return average IoU over the batch
 
 
 class ContourPrecisionRecall(nn.Module):
@@ -412,11 +455,11 @@ def log_predictions_to_wandb(raw_input, seg_masks, seg_masks_gt,
     normal_edge_mask_img_rgb[:, :, 1] = normal_edge_mask_img[1]
     cluster_edge_mask_img_rgb[:, :, 1] = cluster_edge_mask_img[1]
     
-    print("++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++")
-    print(f"nuclei rgb ratio: {np.sum(seg_mask_img_rgb[:,:,1] == 255)*100.0 / (512 * 512)}")
-    print(f"edge rgb ratio: {np.sum(normal_edge_mask_img_rgb[:,:,1] == 255)*100.0/ (512 * 512)}")
-    print(f"cluster rgb edge ratio: {np.sum(cluster_edge_mask_img_rgb[:,:,1] == 255)*100.0 / (512 * 512)}")
-    print("-------------------------------------------------------------")
+    # print("++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++")
+    # print(f"nuclei rgb ratio: {np.sum(seg_mask_img_rgb[:,:,1] == 255)*100.0 / (512 * 512)}")
+    # print(f"edge rgb ratio: {np.sum(normal_edge_mask_img_rgb[:,:,1] == 255)*100.0/ (512 * 512)}")
+    # print(f"cluster rgb edge ratio: {np.sum(cluster_edge_mask_img_rgb[:,:,1] == 255)*100.0 / (512 * 512)}")
+    # print("-------------------------------------------------------------")
 
     # Prepare separator
     separator = np.ones((512, 10, 3), dtype=np.uint8) * 255  # (512, 10, 3)

@@ -39,7 +39,6 @@ def main():
     parser.add_argument("--num_epoch", required=True, help="number of epochs")
     parser.add_argument("--lr", required=True, help="learning rate")
     parser.add_argument("--model_path", default=None, help="path to pretrained model")
-    parser.add_argument("--sharing_ratio",required=True,default=0.5, help=" ratio of sharing proportion of decoders")
     args = parser.parse_args()
 
     # Seed initialization

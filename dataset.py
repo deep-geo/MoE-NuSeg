@@ -50,13 +50,7 @@ class MyDataset(Dataset):
         instance_mask = self.sem2ins(label_copy)
         normal_edge_mask = self.generate_normal_edge_mask(label)
         cluster_edge_mask = self.generate_cluster_edge_mask(label)
-        
-        #print(f"data seed = {self.seed}")
-        # random.seed(self.seed)
-        # np.random.seed(self.seed)
-        # torch.manual_seed(self.seed)
-        # torch.cuda.manual_seed(self.seed)
-        
+                
         if self.transform is not None:
             img = self.transform(img)
             label = self.transform(label)

@@ -1,4 +1,4 @@
-# MoE (phase 1) with 3 experts with Physical Significance using data_type = 0,1,2, phase 1: train 3 experts with Physical Significance without router, in_chan = 3
+# MoE (phase 1) with 3 experts with Physical Significance using data_type = 0,1,2, phase 1: train 3 experts with Physical Significance without router, in_chan = 3, baseline
 
 # Standard Libraries
 import os
@@ -36,7 +36,6 @@ from einops import rearrange
 
 # Custom Modules
 from utils import *
-from dataset_radio import MyDataset
 from models.transnuseg_MoE_p1 import TransNuSeg as MoE_p1
 
 # Logging and Tracking
@@ -102,32 +101,27 @@ def main():
     wandb.init(project = dataset, name = "MoE p1 seed" + str(random_seed) )
 
     if dataset == "Radiology":
-        channel = 1
         data_path = RADIOLOGY_DATA_PATH
+        from dataset_radio import MyDataset
     elif dataset == "Histology":
-        channel = 3
         data_path = HISTOLOGY_DATA_PATH
+        from dataset import MyDataset
     elif dataset == "Thyroid":
-        channel = 3
         data_path = THYROID_DATA_PATH
     elif dataset == "Lizard":
-        channel = 3
         data_path = LIZARD_DATA_PATH
     else:
         print("Wrong Dataset type")
         return 0
+    print(f"dataloader {dataset} imported")
     
     if os.path.exists(data_path):
         print(f"Dataset {dataset}; data_path {data_path} exists")
     else:
         print(f"data_path {data_path} does not exists")
 
-
-    model = MoE_p1(img_size=IMG_SIZE)
-            
+    model = MoE_p1(img_size=IMG_SIZE)  
     model.to(device)
-    
-    from datetime import datetime
 
     now = datetime.now()
     create_dir('./log')
@@ -179,7 +173,7 @@ def main():
     softmax = torch.nn.Softmax(dim=1)
 
     optimizer = optim.Adam(model.parameters(), lr=base_lr)
-    lr_scheduler = CosineAnnealingLR(optimizer, T_max=2000, eta_min=1e-8) #2000
+    lr_scheduler = CosineAnnealingLR(optimizer, T_max=500, eta_min=1e-8) #2000
 
     best_loss = 10000
     best_epoch = 0

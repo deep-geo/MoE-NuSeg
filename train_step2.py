@@ -378,13 +378,11 @@ def main():
             
             # **Secondary prediction (pred1) evaluation**
             # Metrics for normal edge segmentation (pred1)
-            pred1_probs = torch.sigmoid(pred1)  # Sigmoid for binary prediction
-            pred1_classes = (pred1_probs > 0.5).long()
 
-            HDF_loss_nor = HDLoss_nor(pred1_probs, normal_edge_mask.float())
-            BF1_nor = bf1_nor(pred1_classes, normal_edge_mask)
-            BDSC_nor = dice_nor(pred1_classes, normal_edge_mask)
-            BPrec_nor, BRecall_nor = pr_nor(pred1_classes, normal_edge_mask)
+            HDF_loss_nor = HDLoss_nor(pred1, normal_edge_mask.float())
+            BF1_nor = bf1_nor(pred1, normal_edge_mask)
+            BDSC_nor = dice_nor(pred1, normal_edge_mask)
+            BPrec_nor, BRecall_nor = pr_nor(pred1, normal_edge_mask)
             
             dices_pred1.append(HDF_loss_nor.item())
             bf1s_pred1.append(BF1_nor.item())
@@ -394,13 +392,11 @@ def main():
             
             # **Thirdary prediction (pred2) evaluation**
             # Metrics for normal edge segmentation (pred2)
-            pred2_probs = torch.sigmoid(pred2)  # Sigmoid for binary prediction
-            pred2_classes = (pred2_probs > 0.5).long()
 
             HDF_loss_clu = HDLoss_clu(pred2, clu_edge_mask.float())
-            BF1_clu = bf1_clu(pred2_classes, clu_edge_mask)
-            BDSC_clu = dice_clu(pred2_classes, clu_edge_mask)
-            BPrec_clu, BRecall_clu = pr_clu(pred1_classes, clu_edge_mask)
+            BF1_clu = bf1_clu(pred2, clu_edge_mask)
+            BDSC_clu = dice_clu(pred2, clu_edge_mask)
+            BPrec_clu, BRecall_clu = pr_clu(pred2, clu_edge_mask)
 
             dices_pred2.append(HDF_loss_clu.item())
             bf1s_pred2.append(BF1_clu.item())
