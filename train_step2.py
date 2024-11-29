@@ -52,7 +52,7 @@ RADIOLOGY_DATA_PATH = os.path.join(base_data_dir,'fluorescence') # Containing tw
 THYROID_DATA_PATH = os.path.join(base_data_dir,'thyroid') # Containing two folders named data and test
 LIZARD_DATA_PATH = os.path.join(base_data_dir,'lizard') #Containing two folders named data and test
 
-checkpoint_path = "/root/autodl-tmp/MoE-NuSeg/saved/model_Radiology_MoE_p1_seed42_epoch147_loss_0.08226_1125_1452.pt"
+checkpoint_path = "/root/autodl-tmp/MoE-NuSeg/saved/model_Histology_MoE_p1_seed42_epoch100_loss_0.13644_1128_2128.pt"
 
 def main():
     '''
@@ -104,21 +104,19 @@ def main():
 
     IMG_SIZE = 512
     if dataset == "Radiology":
-        channel = 1
         data_path = RADIOLOGY_DATA_PATH
+        from dataset_radio import MyDataset
     elif dataset == "Histology":
-        channel = 3
         data_path = HISTOLOGY_DATA_PATH
+        from dataset import MyDataset
     elif dataset == "Thyroid":
-        channel = 3
         data_path = THYROID_DATA_PATH
     elif dataset == "Lizard":
-        channel = 3
         data_path = LIZARD_DATA_PATH
     else:
         print("Wrong Dataset type")
         return 0
- 
+    print(f"dataloader {dataset} imported")
     wandb.init(project = dataset, name = "MoE p2 seed" + str(random_seed))
 
     model = MoE_p2(img_size=IMG_SIZE)
@@ -127,10 +125,10 @@ def main():
     print(f"=========Phase 2 training: Phase 1 model was loaded, Retrain all==========")
     print(f"Loaded Model: {checkpoint_path}")
     
-    if os.path.exists(data_path):
-        print(f"Dataset: {dataset}; data_path: {data_path} exists")
-    else:
-        print(f"data_path {data_path} does not exists")
+    # if os.path.exists(data_path):
+    #     print(f"Dataset: {dataset}; data_path: {data_path} exists")
+    # else:
+    #     print(f"data_path {data_path} does not exists")
     
         
 #     # Freeze all parameters of the model
@@ -189,14 +187,14 @@ def main():
     dice_loss3 = DiceLoss(num_classes)
     
     HDLoss_nor = HausdorffLoss()
-    bf1_nor = BoundaryF1Score(tolerance=2)
-    dice_nor = DiceCoefficientBoundary(tolerance=2)
-    pr_nor = ContourPrecisionRecall(tolerance=2)
+    bf1_nor = BoundaryF1Score(tolerance=1)
+    dice_nor = DiceCoefficientBoundary(tolerance=1)
+    pr_nor = ContourPrecisionRecall(tolerance=1)
     
     HDLoss_clu = HausdorffLoss()
-    bf1_clu = BoundaryF1Score(tolerance=2)
-    dice_clu = DiceCoefficientBoundary(tolerance=2)
-    pr_clu = ContourPrecisionRecall(tolerance=2)
+    bf1_clu = BoundaryF1Score(tolerance=1)
+    dice_clu = DiceCoefficientBoundary(tolerance=1)
+    pr_clu = ContourPrecisionRecall(tolerance=1)
 
     optimizer = optim.Adam(model.parameters(), lr=base_lr)
     lr_scheduler = CosineAnnealingLR(optimizer, T_max=400, eta_min=1e-8)
